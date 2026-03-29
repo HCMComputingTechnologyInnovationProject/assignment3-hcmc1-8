@@ -1,32 +1,34 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import Navbar from "@/components/Navbar";
-import Index from "./pages/Index";
-import Predict from "./pages/Predict";
-import Dashboard from "./pages/Dashboard";
-import About from "./pages/About";
-import NotFound from "./pages/NotFound";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/layout/Sidebar';
+import Navbar from './components/layout/Navbar';
+import DashboardPage from './pages/Dashboard';
+import PredictPage from './pages/Predict';
+// Import other pages as you create them
+import './App.css';
 
-const queryClient = new QueryClient();
+const App: React.FC = () => {
+  return (
+    <Router>
+      <div className="app-container">
+        <Sidebar />
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <BrowserRouter>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/predict" element={<Predict />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/about" element={<About />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        <div className="main-layout">
+          <Navbar />
+
+          <main className="content-area">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/predict" element={<PredictPage />} />
+
+            </Routes>
+          </main>
+        </div>
+      </div>
+    </Router>
+  );
+};
 
 export default App;
