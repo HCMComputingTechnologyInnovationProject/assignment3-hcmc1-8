@@ -1,85 +1,132 @@
-import { useTransactions, Transaction } from '../lib/TransactionContext';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, AreaChart, Area
-} from 'recharts';
+import { Activity, ShieldAlert, Eye, TrendingUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { Link } from "react-router-dom";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Badge } from "@/components/ui/badge";
+import { alerts, velocityData, threatDistribution, aiInsights } from "@/data/mockData";
 
-export default function Dashboard() {
-  const { transactions } = useTransactions();
+const stats = [
+  { label: "Transactions Monitored", value: "2,847", change: "+12.3%", icon: Activity, color: "text-chart-blue" },
+  { label: "System Threat Level", value: "ELEVATED", change: "Level 3/5", icon: ShieldAlert, color: "text-risk-high" },
+  { label: "Active Alerts", value: "6", change: "+3 new", icon: Eye, color: "text-risk-critical" },
+  { label: "Detection Rate", value: "99.7%", change: "+0.2%", icon: TrendingUp, color: "text-risk-low" },
+];
 
-  // --- 1. Calculate Stats from Context ---
-  const totalMonitored = 2847 + transactions.length; // Base static number + new ones
-  const activeAlerts = transactions.filter(t => t.status !== 'approved').length;
-  const detectionRate = 99.7; // Static or calculated based on your logic
-
-  // --- 2. Format Data for the Chart ---
-  // In a real app, you'd group transactions by hour. 
-  // For now, we'll use a mix of static "history" and your live data.
-  const chartData = [
-    { time: '00:00', velocity: 120, anomalies: 10 },
-    { time: '04:00', velocity: 40, anomalies: 5 },
-    { time: '08:00', velocity: 280, anomalies: 15 },
-    { time: '12:00', velocity: 510, anomalies: 25 },
-    { time: '16:00', velocity: 390, anomalies: 12 },
-    { time: '20:00', velocity: 210, anomalies: 8 },
-  ];
-
-  return (
-    <div className="flex min-h-screen bg-[#0a0e17] text-white">
-      {/* Main Content */}
-      <div className="flex-1 p-8">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold">Fraud Detection Overview</h1>
-          <p className="text-slate-400 text-sm">Real-time monitoring · Last updated 2 min ago</p>
-        </header>
-
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard title="TRANSACTIONS MONITORED" value={totalMonitored.toLocaleString()} change="+12.3%" color="text-blue-400" />
-          <StatCard title="SYSTEM THREAT LEVEL" value="ELEVATED" subValue="Level 3/5" color="text-orange-500" />
-          <StatCard title="ACTIVE ALERTS" value={activeAlerts} change={`+${activeAlerts} new`} color="text-red-500" />
-          <StatCard title="DETECTION RATE" value={`${detectionRate}%`} change="+0.2%" color="text-green-400" />
-        </div>
-
-        {/* Chart Section */}
-        <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
-          <h3 className="text-lg font-semibold mb-6">Transaction Velocity & Anomalies</h3>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorVelocity" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Area type="monotone" dataKey="velocity" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVelocity)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function severityBadge(s: string) {
+  const map: Record<string, string> = {
+    critical: "bg-risk-critical/10 text-risk-critical border-risk-critical/20",
+    high: "bg-risk-high/10 text-risk-high border-risk-high/20",
+    medium: "bg-risk-medium/10 text-risk-medium border-risk-medium/20",
+    low: "bg-risk-low/10 text-risk-low border-risk-low/20",
+  };
+  return map[s] || "";
 }
 
-// Add this helper component at the very bottom
-function StatCard({ title, value, change, subValue, color }: any) {
+export default function Dashboard() {
   return (
-    <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
-      <p className="text-xs text-slate-400 font-bold tracking-wider">{title}</p>
-      <div className="flex flex-col mt-2">
-        <span className={`text-2xl font-bold ${color}`}>{value}</span>
-        {change && <span className="text-xs text-blue-400 mt-1">{change}</span>}
-        {subValue && <span className="text-xs text-orange-400 mt-1">{subValue}</span>}
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Fraud Detection Overview</h1>
+          <p className="text-muted-foreground text-sm">Real-time monitoring · Last updated 2 min ago</p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <div key={s.label} className="glass-card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.label}</span>
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+              </div>
+              <p className="text-2xl font-bold text-foreground">{s.value}</p>
+              <p className={`text-xs mt-1 ${s.color}`}>{s.change}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart */}
+        <div className="glass-card p-6">
+          <h2 className="text-base font-semibold text-foreground mb-4">Transaction Velocity & Anomalies</h2>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={velocityData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 30% 18%)" />
+              <XAxis dataKey="time" stroke="hsl(215 20% 55%)" fontSize={12} />
+              <YAxis stroke="hsl(215 20% 55%)" fontSize={12} />
+              <Tooltip contentStyle={{ backgroundColor: "hsl(222 41% 10%)", border: "1px solid hsl(222 30% 18%)", borderRadius: "8px", color: "hsl(210 40% 95%)" }} />
+              <Line type="monotone" dataKey="transactions" stroke="hsl(213 94% 55%)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="anomalies" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Alerts Table */}
+          <div className="lg:col-span-2 glass-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-foreground">Latest Alerts</h2>
+              <Link to="/alerts" className="text-xs text-primary hover:underline">View all →</Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 text-muted-foreground font-medium">Alert</th>
+                    <th className="text-left py-2 text-muted-foreground font-medium">Severity</th>
+                    <th className="text-right py-2 text-muted-foreground font-medium">Risk</th>
+                    <th className="text-right py-2 text-muted-foreground font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alerts.slice(0, 5).map((a) => (
+                    <tr key={a.id} className="border-b border-border/50 hover:bg-accent/50 transition-colors">
+                      <td className="py-3">
+                        <Link to={`/alerts/${a.id}`} className="text-foreground hover:text-primary font-medium">{a.type}</Link>
+                        <p className="text-xs text-muted-foreground">{a.merchant}</p>
+                      </td>
+                      <td className="py-3">
+                        <Badge variant="outline" className={severityBadge(a.severity)}>{a.severity}</Badge>
+                      </td>
+                      <td className="py-3 text-right font-mono font-semibold text-foreground">{a.riskScore}</td>
+                      <td className="py-3 text-right font-mono text-foreground">${a.amount.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* AI Insights */}
+          <div className="glass-card p-6">
+            <h2 className="text-base font-semibold text-foreground mb-4">AI Insights</h2>
+            <div className="space-y-4">
+              {aiInsights.map((insight) => (
+                <div key={insight.id} className="p-3 rounded-lg bg-secondary/50 border border-border/50">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`h-2 w-2 rounded-full ${insight.severity === "critical" ? "bg-risk-critical animate-pulse-glow" : insight.severity === "high" ? "bg-risk-high" : "bg-risk-medium"}`} />
+                    <span className="text-sm font-medium text-foreground">{insight.title}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{insight.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Threat Distribution */}
+        <div className="glass-card p-6">
+          <h2 className="text-base font-semibold text-foreground mb-4">Global Threat Distribution</h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={threatDistribution} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 30% 18%)" horizontal={false} />
+              <XAxis type="number" stroke="hsl(215 20% 55%)" fontSize={12} />
+              <YAxis dataKey="region" type="category" stroke="hsl(215 20% 55%)" fontSize={12} width={120} />
+              <Tooltip contentStyle={{ backgroundColor: "hsl(222 41% 10%)", border: "1px solid hsl(222 30% 18%)", borderRadius: "8px", color: "hsl(210 40% 95%)" }} />
+              <Bar dataKey="threats" fill="hsl(213 94% 55%)" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
