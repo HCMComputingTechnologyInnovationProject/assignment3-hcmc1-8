@@ -1,8 +1,9 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, ArrowLeftRight, ShieldAlert, Brain, Search, Bell, ChevronLeft, ChevronRight, Shield
+  LayoutDashboard, ArrowLeftRight, ShieldAlert, Brain, Search, Bell, ChevronLeft, ChevronRight, Shield, Sun, Moon
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,7 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { theme, toggle } = useTheme();
 
   return (
     <div className="flex min-h-screen">
@@ -58,6 +60,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <Input placeholder="Search transactions, alerts..." className="pl-9 bg-secondary border-border" />
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={toggle} title="Toggle theme">
+              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-risk-critical text-[10px] font-bold flex items-center justify-center text-primary-foreground">6</span>
