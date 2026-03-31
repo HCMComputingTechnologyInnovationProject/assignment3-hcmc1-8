@@ -67,13 +67,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <Bell className="h-5 w-5" />
               <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-risk-critical text-[10px] font-bold flex items-center justify-center text-primary-foreground">6</span>
             </Button>
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-semibold">JD</div>
-              <div className="hidden md:block">
-                <p className="text-sm font-medium text-foreground">James Donovan</p>
-                <p className="text-xs text-muted-foreground">Security Analyst</p>
-              </div>
-            </div>
           </div>
         </header>
 
