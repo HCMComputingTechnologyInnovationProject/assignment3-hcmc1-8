@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, Sector, AreaChart, Area
@@ -12,12 +12,13 @@ import { revenueTrendData, projectsData, mapMarkers, velocityData, aiInsights } 
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
-const stats = [
-  { label: "Revenue: Q1 2020", value: "$2.32M", change: "↑", subtitle: "Q4 2019: $1.87M", up: true, borderBorder: "border-t-[#8b5cf6]" },
-  { label: "Expense: Q1 2020", value: "$42.76K", change: "↓", subtitle: "Q4 2019: $48.96K", up: false, borderBorder: "border-t-[#3b82f6]" },
-  { label: "Profit: Q1 2020", value: "$516.76K", change: "↑", subtitle: "Q4 2019: $471.63K", up: true, borderBorder: "border-t-[#ec4899]" },
-  { label: "Revenue per Employee", value: "$110.01K", change: "", subtitle: "", up: null, borderBorder: "border-t-[#06b6d4]" },
-  { label: "Active Customers", value: "3.63K", change: "", subtitle: "", up: null, borderBorder: "border-t-[#10b981]" },
+// Stats derived from API
+const baseStatsTemplate = [
+  { label: "Total Revenue", value: "$0.00M", change: "↑", subtitle: "Fetching...", up: true, borderBorder: "border-t-[#8b5cf6]" },
+  { label: "Operating Expense", value: "$0.00K", change: "↓", subtitle: "Fetching...", up: false, borderBorder: "border-t-[#3b82f6]" },
+  { label: "Fraud Detected", value: "0", change: "!", subtitle: "Real-time sync", up: true, borderBorder: "border-t-[#ec4899]" },
+  { label: "Fraud Rate", value: "0.00%", change: "", subtitle: "Dataset: IEEE", up: null, borderBorder: "border-t-[#06b6d4]" },
+  { label: "Avg Transaction", value: "$0.00", change: "", subtitle: "Unit: USD", up: null, borderBorder: "border-t-[#10b981]" },
 ];
 
 const renderActiveShape = (props: any) => {
@@ -79,10 +80,54 @@ const CustomBarTooltip = ({ active, payload, label }: any) => {
 
 export default function Dashboard() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [revenueData, setRevenueData] = useState<any>(revenueTrendData);
+  const [projectData, setProjectData] = useState<any>(projectsData);
+
+  useEffect(() => {
+    const fetchData = () => {
+      // 1. Fetch Overview Stats
+      fetch("http://localhost:8000/api/dashboard/overview")
+        .then(res => res.json())
+        .then(data => setDashboardStats(data))
+        .catch(err => console.log("Backend not ready"));
+
+      // 2. Fetch Bar Chart Data
+      fetch("http://localhost:8000/api/dashboard/charts/revenue-expense")
+        .then(res => res.json())
+        .then(data => {
+          const formatted = data.labels.map((label: string, index: number) => ({
+            month: label,
+            revenue: data.revenue[index],
+            expenses: data.expenses[index]
+          }));
+          setRevenueData(formatted);
+        })
+        .catch(err => console.log("Backend not ready"));
+
+      // 3. Fetch Pie Chart Data
+      fetch("http://localhost:8000/api/dashboard/charts/projects")
+        .then(res => res.json())
+        .then(data => setProjectData(data))
+        .catch(err => console.log("Backend not ready"));
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 3000); // Polling every 3 seconds for Real-time feel
+    return () => clearInterval(interval);
+  }, []);
 
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index);
   };
+
+  const displayStats = dashboardStats ? [
+    { label: "Total Revenue", value: `$${dashboardStats.revenue.current}${dashboardStats.revenue.unit}`, change: dashboardStats.revenue.trend === 'up' ? '↑' : '↓', subtitle: `Prev: $${dashboardStats.revenue.previous}${dashboardStats.revenue.unit}`, up: dashboardStats.revenue.trend === 'up', borderBorder: "border-t-[#8b5cf6]" },
+    { label: "Operating Expense", value: `$${dashboardStats.expense.current}${dashboardStats.expense.unit}`, change: '↓', subtitle: "Optimized", up: false, borderBorder: "border-t-[#3b82f6]" },
+    { label: "Fraud Detected", value: `${dashboardStats.fraud_detected.current}`, change: "!", subtitle: "Real-time sync", up: true, borderBorder: "border-t-[#ec4899]" },
+    { label: "Fraud Rate", value: `${dashboardStats.fraud_rate.current}%`, change: "", subtitle: "Dataset: IEEE", up: null, borderBorder: "border-t-[#06b6d4]" },
+    { label: "Avg Transaction", value: `$${dashboardStats.avg_transaction.current}`, change: "", subtitle: "Unit: USD", up: null, borderBorder: "border-t-[#10b981]" },
+  ] : baseStatsTemplate;
 
   return (
     <DashboardLayout>
@@ -98,7 +143,7 @@ export default function Dashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {stats.map((s, i) => (
+          {displayStats.map((s, i) => (
             <div key={i} className={`glass-card p-5 border-t-[3px] ${s.borderBorder} shadow-md hover:shadow-lg transition-all duration-300 flex flex-col justify-center min-h-[110px] transform hover:-translate-y-1`}>
               <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{s.label}</div>
               <div className="flex items-baseline gap-2">
@@ -125,7 +170,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1 w-full h-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
                   <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dy={10} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}K`} dx={-10} />
@@ -149,7 +194,7 @@ export default function Dashboard() {
                   <Pie
                     activeIndex={activeIndex}
                     activeShape={renderActiveShape}
-                    data={projectsData}
+                    data={projectData}
                     cx="50%"
                     cy="50%"
                     innerRadius="50%"
@@ -160,7 +205,7 @@ export default function Dashboard() {
                     onMouseEnter={onPieEnter}
                     animationDuration={1000}
                   >
-                    {projectsData.map((entry, index) => (
+                    {projectData.map((entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} style={{ filter: `drop-shadow(0px 4px 6px ${entry.fill}40)` }} />
                     ))}
                   </Pie>

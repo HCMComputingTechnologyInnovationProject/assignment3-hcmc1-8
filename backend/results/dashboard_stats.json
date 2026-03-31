@@ -1,0 +1,73 @@
+{
+    "overview": {
+        "revenue": {
+            "current": 0.15,
+            "unit": "M",
+            "previous": 0.13,
+            "trend": "up"
+        },
+        "expense": {
+            "current": 29.9,
+            "unit": "K",
+            "previous": 42.76,
+            "trend": "down"
+        },
+        "fraud_detected": {
+            "current": 6024,
+            "unit": "Cases"
+        },
+        "fraud_rate": {
+            "current": 3.01,
+            "unit": "%"
+        },
+        "avg_transaction": {
+            "current": 0.75,
+            "unit": "USD"
+        }
+    },
+    "charts": {
+        "revenue_expense": {
+            "labels": [
+                "Segment 1",
+                "Segment 2",
+                "Segment 3",
+                "Segment 4",
+                "Segment 5",
+                "Segment 6"
+            ],
+            "revenue": [
+                149.51
+            ],
+            "expenses": [
+                22.43
+            ]
+        },
+        "projects": [
+            {
+                "name": "0.0",
+                "value": 126.6,
+                "fill": "#f97316"
+            },
+            {
+                "name": "-2.0",
+                "value": 29.5,
+                "fill": "#3b82f6"
+            },
+            {
+                "name": "-3.0",
+                "value": 0.5,
+                "fill": "#10b981"
+            },
+            {
+                "name": "-1.0",
+                "value": -0.6,
+                "fill": "#8b5cf6"
+            },
+            {
+                "name": "-4.0",
+                "value": -6.4,
+                "fill": "#ec4899"
+            }
+        ]
+    }
+}

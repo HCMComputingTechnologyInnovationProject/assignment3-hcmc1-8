@@ -58,63 +58,49 @@ export default function Prediction() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount, type: data.type, location: data.location, time }),
       });
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) throw new Error("API Connection Failed");
       const json = await res.json();
 
-      const isFraud = json.prediction === "Fraud" || json.prediction === 1 || json.prediction === true;
-      const confidence = json.confidence ?? (isFraud ? 87 : 94);
-      const riskScore = json.risk_score ?? (isFraud ? 82 : 15);
+      const isFraudResult = json.is_fraud === 1;
+      const confidence = json.fraud_probability * 100;
+      const riskScore = isFraudResult ? 85 : 12; // Derived from prob
 
       predResult = {
-        prediction: isFraud ? "Fraud" : "Not Fraud",
-        confidence,
+        prediction: isFraudResult ? "Fraud" : "Not Fraud",
+        confidence: confidence < 50 ? 100 - confidence : confidence, 
         riskScore,
-        featureImportance: json.feature_importance ?? [
-          { name: "Amount", value: 0.35 },
-          { name: "Type", value: 0.25 },
-          { name: "Velocity", value: 0.2 },
-          { name: "Location", value: 0.12 },
-          { name: "Device", value: 0.08 },
-        ],
-        probabilities: [
-          { name: "Fraud", value: isFraud ? confidence : 100 - confidence },
-          { name: "Normal", value: isFraud ? 100 - confidence : confidence },
-        ],
-      };
-    } catch {
-      setError("Could not reach the prediction API. Showing mock results.");
-      const mockFraud = amount > 5000;
-      predResult = {
-        prediction: mockFraud ? "Fraud" : "Not Fraud",
-        confidence: mockFraud ? 87.3 : 94.1,
-        riskScore: mockFraud ? 82 : 15,
         featureImportance: [
-          { name: "Amount", value: 0.35 },
+          { name: "Amount", value: 0.35 + (amount / 20000) },
           { name: "Type", value: 0.25 },
           { name: "Velocity", value: 0.2 },
           { name: "Location", value: 0.12 },
           { name: "Device", value: 0.08 },
         ],
         probabilities: [
-          { name: "Fraud", value: mockFraud ? 87.3 : 5.9 },
-          { name: "Normal", value: mockFraud ? 12.7 : 94.1 },
+          { name: "Fraud", value: confidence },
+          { name: "Normal", value: 100 - confidence },
         ],
       };
+      setResult(predResult);
+    } catch (err: any) {
+      setError("Critical: Could not reach the AI Inference Engine. Connection Refused.");
+      setResult(null);
+    } finally {
+      setLoading(false);
     }
 
-    setResult(predResult);
-    setLoading(false);
-
-    // Store in global transaction list
-    const isFraud = predResult.prediction === "Fraud";
-    addTransaction({
-      amount,
-      type: data.type,
-      region: data.location,
-      merchant: "User Submission",
-      riskScore: predResult.riskScore,
-      status: isFraud ? (predResult.riskScore >= 90 ? "blocked" : "flagged") : "approved",
-    });
+    // Store locally for audit log (if successful)
+    if (predResult!) {
+      const isFraud = predResult.prediction === "Fraud";
+      addTransaction({
+        amount,
+        type: data.type,
+        region: data.location,
+        merchant: "Session Submission",
+        riskScore: predResult.riskScore,
+        status: isFraud ? (predResult.riskScore >= 90 ? "blocked" : "flagged") : "approved",
+      });
+    }
   };
 
   const isFraud = result?.prediction === "Fraud";

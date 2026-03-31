@@ -1,6 +1,5 @@
-import { useState, useMemo, useSyncExternalStore } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getTransactions, subscribe } from "@/stores/transactionStore";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,28 +19,48 @@ function statusBadge(s: string) {
 }
 
 export default function Transactions() {
-  const transactions = useSyncExternalStore(subscribe, getTransactions);
+  const [remoteTransactions, setRemoteTransactions] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [riskRange, setRiskRange] = useState([0]);
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    fetch("http://localhost:8000/api/transactions")
+      .then(res => res.json())
+      .then(data => {
+        // Map IEEE dataset columns to UI schema
+        const mapped = data.map((t: any) => ({
+          id: t.TransactionID.toString(),
+          timestamp: Date.now() - (Math.random() * 10000000), // Randomize for realism in mock UI
+          merchant: t.card4 || "Unknown Card",
+          type: t.ProductCD || "W",
+          region: "Global",
+          amount: t.TransactionAmt,
+          riskScore: t.isFraud === 1 ? 95 : 5,
+          status: t.isFraud === 1 ? "blocked" : "approved"
+        }));
+        setRemoteTransactions(mapped);
+      })
+      .catch(err => console.log("Transactions offline"));
+  }, []);
+
   const filtered = useMemo(() => {
-    return transactions.filter((t) => {
+    return remoteTransactions.filter((t) => {
       if (search && !t.merchant.toLowerCase().includes(search.toLowerCase()) && !t.id.toLowerCase().includes(search.toLowerCase())) return false;
       if (typeFilter !== "all" && t.type !== typeFilter) return false;
       if (regionFilter !== "all" && t.region !== regionFilter) return false;
       if (t.riskScore < riskRange[0]) return false;
       return true;
     });
-  }, [transactions, search, typeFilter, regionFilter, riskRange]);
+  }, [remoteTransactions, search, typeFilter, regionFilter, riskRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const types = [...new Set(transactions.map((t) => t.type))];
-  const regions = [...new Set(transactions.map((t) => t.region))];
+  const types = [...new Set(remoteTransactions.map((t) => t.type))];
+  const regions = [...new Set(remoteTransactions.map((t) => t.region))];
 
   return (
     <DashboardLayout>
