@@ -25,10 +25,10 @@ const renderActiveShape = (props: any) => {
 
   return (
     <g>
-      <text x={cx} y={cy - 12} dy={8} textAnchor="middle" fill={fill} fontSize={14} className="font-bold">
+      <text x={cx} y={cy - 12} dy={8} textAnchor="middle" fill={fill} fontSize={14} className="font-bold animate-in fade-in zoom-in-95 duration-300">
         {payload.name}
       </text>
-      <text x={cx} y={cy + 12} dy={8} textAnchor="middle" fill="hsl(var(--foreground))" fontSize={16} className="font-bold">
+      <text x={cx} y={cy + 12} dy={8} textAnchor="middle" fill="hsl(var(--foreground))" fontSize={16} className="font-bold animate-in fade-in zoom-in-95 duration-300 delay-75">
         {`${(percent * 100).toFixed(1)}%`}
       </text>
       <Sector
@@ -39,6 +39,8 @@ const renderActiveShape = (props: any) => {
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
+        className="transition-all duration-300 ease-in-out"
+        style={{ transition: 'all 300ms ease-in-out' }}
       />
       <Sector
         cx={cx}
@@ -48,6 +50,8 @@ const renderActiveShape = (props: any) => {
         innerRadius={outerRadius + 12}
         outerRadius={outerRadius + 16}
         fill={fill}
+        className="transition-all duration-300 ease-in-out"
+        style={{ transition: 'all 300ms ease-in-out' }}
       />
     </g>
   );

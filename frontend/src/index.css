@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: 210 40% 96%;
     --foreground: 222 47% 11%;
 
@@ -58,6 +59,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 222 47% 6%;
     --foreground: 210 40% 95%;
 
@@ -142,4 +144,26 @@
   .bg-risk-high\/10 { background-color: hsl(var(--risk-high) / 0.1); }
   .bg-risk-medium\/10 { background-color: hsl(var(--risk-medium) / 0.1); }
   .bg-risk-low\/10 { background-color: hsl(var(--risk-low) / 0.1); }
+
+  /* Custom Scrollbar Styles */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+  
+  /* Make all default scrollbars respect dark mode automatically */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
 }

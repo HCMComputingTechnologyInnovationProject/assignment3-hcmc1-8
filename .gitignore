@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backend / ML 
+__pycache__
+.venv
+backend/data/processed/
+backend/data/raw/
+backend/results/models/*.pkl
+backend/results/figures/*.png
+backend/results/metrics/*.json (if mock)
+.ipynb_checkpoints
+*.pyc

@@ -53,7 +53,7 @@ export default function Prediction() {
     let predResult: PredictionResult;
 
     try {
-      const res = await fetch("http://localhost:8000/predict", {
+      const res = await fetch("http://localhost:8000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount, type: data.type, location: data.location, time }),
