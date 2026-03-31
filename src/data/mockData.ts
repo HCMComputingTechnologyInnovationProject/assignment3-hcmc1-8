@@ -79,3 +79,29 @@ export const aiInsights = [
   { id: 2, title: "New Shell Company Pattern", description: "ML model identified 3 new entities matching shell company behavioral patterns. Entities registered within 30 days, receiving transfers >$10K from multiple accounts.", severity: "high" as const },
   { id: 3, title: "IP Reputation Shift", description: "IP block 185.220.x.x has shifted from neutral to high-risk based on cross-institution fraud reporting. 4 transactions from this block in the last 6 hours.", severity: "medium" as const },
 ];
+
+export const revenueTrendData = [
+  { month: "Oct 2019", revenue: 116.71, expenses: 45.40 },
+  { month: "Nov 2019", revenue: 262.90, expenses: 71.47 },
+  { month: "Dec 2019", revenue: 231.35, expenses: 32.54 },
+  { month: "Jan 2020", revenue: 214.04, expenses: 19.80 },
+  { month: "Feb 2020", revenue: 214.37, expenses: 28.40 },
+  { month: "Mar 2020", revenue: 131.59, expenses: 11.48 },
+];
+
+export const projectsData = [
+  { name: "ERP", value: 32, fill: "#EA580C" }, // Orangeish
+  { name: "Consulting Services", value: 20, fill: "#0EA5E9" }, // Light blue
+  { name: "OEM Mobile Apps", value: 6, fill: "#84CC16" }, // Lime
+  { name: "Certification Program", value: 10, fill: "#3B82F6" }, // Blue
+  { name: "App Builder", value: 32, fill: "#1D4ED8" }, // Dark blue
+];
+
+export const mapMarkers = [
+  { markerOffset: -15, name: "North America", coordinates: [-100, 45], count: 599, color: "#3B82F6" },
+  { markerOffset: 15, name: "South America", coordinates: [-60, -15], count: 120, color: "#8B5CF6" },
+  { markerOffset: -15, name: "Europe", coordinates: [15, 50], count: 340, color: "#10B981" },
+  { markerOffset: 15, name: "Africa", coordinates: [20, 0], count: 80, color: "#F59E0B" },
+  { markerOffset: 15, name: "Asia", coordinates: [90, 40], count: 420, color: "#EC4899" },
+  { markerOffset: 25, name: "Oceania", coordinates: [140, -25], count: 50, color: "#06B6D4" },
+];

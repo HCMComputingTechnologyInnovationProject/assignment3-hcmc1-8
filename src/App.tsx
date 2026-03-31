@@ -9,6 +9,7 @@ import Transactions from "./pages/Transactions";
 import Alerts from "./pages/Alerts";
 import AlertDetails from "./pages/AlertDetails";
 import Prediction from "./pages/Prediction";
+import ModelEvaluation from "./pages/ModelEvaluation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/alerts/:id" element={<AlertDetails />} />
             <Route path="/prediction" element={<Prediction />} />
+            <Route path="/evaluation" element={<ModelEvaluation />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
