@@ -2,14 +2,14 @@
 
 SentinelAI is a full-stack fraud detection project built with React, FastAPI, scikit-learn, XGBoost, and SQLite. The application lets users submit transaction features, run real model inference, persist the prediction to a local database, and review the results through charts, alerts, and transaction history.
 
-## Team
+## Team Members
 
-| Name | Student ID | Responsibility |
-| --- | --- | --- |
-| Huynh Ba Thanh | 105029615 | Data processing, dataset preparation, frontend support |
-| Le Thanh Nam | 104999380 | ML implementation, model evaluation, backend, AI integration |
-| Nguyen Hai Dang | 105680423 | Model evaluation metrics, frontend support |
-| Ho Cao Cuong | 105687343 | Isolation Forest, XGBoost, backend support |
+| Name                  | Student ID | Task & Responsibility                                                                          |
+| :-------------------- | :--------- | :--------------------------------------------------------------------------------------------- |
+| Huynh Ba Thanh        | 105029615  | Data Processing & Dataset Preparation for IEEE, PaySim, and ULB, Frontend Support              |
+| Le Thanh Nam (Leader) | 104999380  | ML Implementation (Logistics Regression/GRU), Model Evaluation, Backend, AI Integration        |
+| Nguyen Hai Dang       | 105680423  | Model Evaluation Metrics, Frontend Support                                                     |
+| Ho Cao Cuong          | 105687343  | ML Implementation (Isolation Forest/XG Boost), Backend Support                                 |
 
 ## Tech Stack
 
