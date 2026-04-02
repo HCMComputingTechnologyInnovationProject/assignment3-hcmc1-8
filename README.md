@@ -2,6 +2,15 @@
 
 A unified project for machine learning modeling and its corresponding real-time dashboard.
 
+## Team Members
+
+| Name                  | Student ID | Task & Responsibility                                                                          |
+| :-------------------- | :--------- | :--------------------------------------------------------------------------------------------- |
+| Huynh Ba Thanh        | 105029615  | Data Processing & Dataset Preparation for IEEE, PaySim, and ULB, Frontend Support              |
+| Le Thanh Nam (Leader) | 104999380  | ML Implementation (Logistics Regression/GRU), Model Evaluation, Backend, AI Integration        |
+| Nguyen Hai Dang       | 105680423  | Model Evaluation Metrics, Frontend Support                                                     |
+| Ho Cao Cuong          | 105687343  | ML Implementation (Isolation Forest), Backend Support                                          |
+
 ## 📂 Project Structure
 
 ```text
