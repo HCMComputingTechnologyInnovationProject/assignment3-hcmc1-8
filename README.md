@@ -9,7 +9,7 @@ A unified project for machine learning modeling and its corresponding real-time 
 | Huynh Ba Thanh        | 105029615  | Data Processing & Dataset Preparation for IEEE, PaySim, and ULB, Frontend Support              |
 | Le Thanh Nam (Leader) | 104999380  | ML Implementation (Logistics Regression/GRU), Model Evaluation, Backend, AI Integration        |
 | Nguyen Hai Dang       | 105680423  | Model Evaluation Metrics, Frontend Support                                                     |
-| Ho Cao Cuong          | 105687343  | ML Implementation (Isolation Forest), Backend Support                                          |
+| Ho Cao Cuong          | 105687343  | ML Implementation (Isolation Forest/XG Boost), Backend Support                                 |
 
 ## 📂 Project Structure
 
@@ -31,17 +31,12 @@ A unified project for machine learning modeling and its corresponding real-time 
 
 From the root directory, you can run:
 
-### 1. Start Frontend
+### 1. Start Frontend and Backend
 ```bash
 npm run dev
 ```
 
-### 2. Start Backend
-```bash
-npm run backend
-```
-
-### 3. Install All Dependencies
+### 2. Install All Dependencies
 ```bash
 npm run install-all
 ```
