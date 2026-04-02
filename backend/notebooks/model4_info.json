@@ -1,0 +1,37 @@
+{
+    "model_info": {
+        "model_name": "XGBoost Classifier",
+        "model_type": "Supervised Learning",
+        "algorithm": "Extreme Gradient Boosting",
+        "developer": "Ho Cao Cuong - 105687343"
+    },
+    "hyperparameters": {
+        "n_estimators": 100,
+        "max_depth": 6,
+        "learning_rate": 0.1,
+        "random_state": 42
+    },
+    "datasets_used": [
+        "ULB Credit Card Fraud",
+        "IEEE-CIS Fraud Detection",
+        "PaySim Mobile Money"
+    ],
+    "performance_metrics": {
+        "IEEE_Dataset": {
+            "accuracy": 0.9772,
+            "precision": 0.9096,
+            "recall": 0.4055,
+            "f1_score": 0.5609,
+            "confusion_matrix": {
+                "true_negatives": 113695,
+                "false_positives": 171,
+                "false_negatives": 2522,
+                "true_positives": 1720
+            }
+        }
+    },
+    "saved_artifacts": {
+        "model_file": "xgboost_ieee.pkl",
+        "notebook_file": "Model4_Xgboost.ipynb"
+    }
+}
