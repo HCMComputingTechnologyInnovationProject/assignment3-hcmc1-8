@@ -1,22 +1,10 @@
-import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { AlertTriangle, BarChart3, CreditCard, ShieldAlert, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ChartData, ChartOptions } from "chart.js";
+import { Bar, Doughnut, Line } from "react-chartjs-2";
+import { AlertTriangle, CreditCard, ShieldAlert } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { fetchJson } from "@/lib/api";
+import "@/lib/chartjs";
 
 interface OverviewMetric {
   current: number;
@@ -70,26 +58,8 @@ const emptyOverview: DashboardOverview = {
   avgTransaction: { current: 0, unit: "USD" },
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) {
-    return null;
-  }
-
-  return (
-    <div className="bg-card/95 border border-border p-3 rounded-xl shadow-2xl backdrop-blur-md z-50">
-      <p className="font-semibold text-foreground mb-3 text-sm pb-2 border-b border-border">{label}</p>
-      {payload.map((entry: any, index: number) => (
-        <div key={index} className="flex items-center justify-between gap-6 text-sm mb-1.5">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: entry.color }} />
-            <span className="text-muted-foreground font-medium">{entry.name}</span>
-          </div>
-          <span className="font-bold text-foreground tracking-wide">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
+const axisColor = "rgba(148, 163, 184, 0.9)";
+const gridColor = "rgba(148, 163, 184, 0.15)";
 
 export default function Dashboard() {
   const [overview, setOverview] = useState<DashboardOverview>(emptyOverview);
@@ -146,18 +116,150 @@ export default function Dashboard() {
 
   const stats = [
     { label: "Total Volume", value: `$${overview.totalVolume.current}${overview.totalVolume.unit}`, subtitle: "Loaded from IEEE transactions", border: "border-t-[#8b5cf6]" },
-    { label: "Fraud Loss", value: `$${overview.fraudLoss.current}${overview.fraudLoss.unit}`, subtitle: "Historical plus live flagged volume", border: "border-t-[#ef4444]" },
-    { label: "Fraud Detected", value: `${overview.fraudDetected.current}`, subtitle: "Historical labels plus live predictions", border: "border-t-[#ec4899]" },
+    { label: "Fraud Loss", value: `$${overview.fraudLoss.current}${overview.fraudLoss.unit}`, subtitle: "Historical plus SQLite predictions", border: "border-t-[#ef4444]" },
+    { label: "Fraud Detected", value: `${overview.fraudDetected.current}`, subtitle: "Historical labels plus persisted predictions", border: "border-t-[#ec4899]" },
     { label: "Fraud Rate", value: `${overview.fraudRate.current}%`, subtitle: "Computed from current backend dataset", border: "border-t-[#06b6d4]" },
     { label: "Avg Transaction", value: `$${overview.avgTransaction.current}`, subtitle: "Mean transaction amount", border: "border-t-[#10b981]" },
   ];
+
+  const maxCardFraudRate = useMemo(() => {
+    if (cardBrands.length === 0) {
+      return 1;
+    }
+    return Math.max(...cardBrands.map((brand) => brand.fraudRate), 1);
+  }, [cardBrands]);
+
+  const amountVsFraudData = useMemo<ChartData<"bar">>(() => ({
+    labels: amountVsFraud.map((point) => point.bucket),
+    datasets: [
+      {
+        label: "Transaction Amount (K)",
+        data: amountVsFraud.map((point) => point.transactionAmount),
+        backgroundColor: "#3b82f6",
+        borderRadius: 8,
+      },
+      {
+        label: "Fraud Amount (K)",
+        data: amountVsFraud.map((point) => point.fraudAmount),
+        backgroundColor: "#ef4444",
+        borderRadius: 8,
+      },
+    ],
+  }), [amountVsFraud]);
+
+  const amountVsFraudOptions = useMemo<ChartOptions<"bar">>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: axisColor },
+      },
+      tooltip: {
+        backgroundColor: "rgba(15, 23, 42, 0.94)",
+        titleColor: "#f8fafc",
+        bodyColor: "#e2e8f0",
+        borderColor: "rgba(148, 163, 184, 0.2)",
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: axisColor },
+        grid: { color: gridColor },
+      },
+      y: {
+        ticks: { color: axisColor },
+        grid: { color: gridColor },
+      },
+    },
+  }), []);
+
+  const productBreakdownData = useMemo<ChartData<"doughnut">>(() => ({
+    labels: products.map((product) => product.name),
+    datasets: [
+      {
+        label: "Product Breakdown",
+        data: products.map((product) => product.value),
+        backgroundColor: products.map((product) => product.fill),
+        borderColor: "rgba(15, 23, 42, 0.2)",
+        borderWidth: 2,
+      },
+    ],
+  }), [products]);
+
+  const productBreakdownOptions = useMemo<ChartOptions<"doughnut">>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: axisColor },
+      },
+      tooltip: {
+        backgroundColor: "rgba(15, 23, 42, 0.94)",
+        titleColor: "#f8fafc",
+        bodyColor: "#e2e8f0",
+        borderColor: "rgba(148, 163, 184, 0.2)",
+        borderWidth: 1,
+      },
+    },
+    cutout: "62%",
+  }), []);
+
+  const hourlyActivityData = useMemo<ChartData<"line">>(() => ({
+    labels: hourlyActivity.map((point) => point.hour),
+    datasets: [
+      {
+        label: "Transactions",
+        data: hourlyActivity.map((point) => point.transactions),
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59, 130, 246, 0.18)",
+        fill: true,
+        tension: 0.35,
+      },
+      {
+        label: "Fraud Cases",
+        data: hourlyActivity.map((point) => point.fraudCases),
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239, 68, 68, 0.18)",
+        fill: true,
+        tension: 0.35,
+      },
+    ],
+  }), [hourlyActivity]);
+
+  const hourlyActivityOptions = useMemo<ChartOptions<"line">>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: axisColor },
+      },
+      tooltip: {
+        backgroundColor: "rgba(15, 23, 42, 0.94)",
+        titleColor: "#f8fafc",
+        bodyColor: "#e2e8f0",
+        borderColor: "rgba(148, 163, 184, 0.2)",
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: axisColor },
+        grid: { color: gridColor },
+      },
+      y: {
+        ticks: { color: axisColor },
+        grid: { color: gridColor },
+      },
+    },
+  }), []);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground text-sm mt-1">All widgets now read from the backend IEEE transaction dataset and live prediction feed.</p>
+          <p className="text-muted-foreground text-sm mt-1">This page now uses Chart.js charts and SQLite-backed prediction persistence.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -172,74 +274,28 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[420px] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h2 className="text-base font-bold text-foreground tracking-tight">Transaction Amount vs Fraud Amount</h2>
-            </div>
-            <div className="flex-1 w-full h-full min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={amountVsFraud} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                  <XAxis dataKey="bucket" stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dy={10} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(value) => `${value}K`} dx={-10} />
-                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.4 }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: "12px", fontWeight: "500", paddingTop: "20px" }} />
-                  <Bar dataKey="transactionAmount" name="Transaction Amount (K)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={22} />
-                  <Bar dataKey="fraudAmount" name="Fraud Amount (K)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={22} />
-                </BarChart>
-              </ResponsiveContainer>
+            <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Transaction Amount vs Fraud Amount</h2>
+            <div className="flex-1 min-h-0">
+              <Bar data={amountVsFraudData} options={amountVsFraudOptions} />
             </div>
           </div>
 
           <div className="glass-card p-6 flex flex-col h-[420px] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-4">
               <ShieldAlert className="w-5 h-5 text-primary" />
               <h2 className="text-base font-bold text-foreground tracking-tight">Product Code Breakdown</h2>
             </div>
-            <div className="flex-1 w-full h-full min-h-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={products} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={4}>
-                    {products.map((entry, index) => (
-                      <Cell key={`${entry.name}-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "16px" }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex-1 min-h-0">
+              <Doughnut data={productBreakdownData} options={productBreakdownOptions} />
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[380px] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-6">
-              <Zap className="w-5 h-5 text-amber-500" />
-              <h2 className="text-base font-bold text-foreground tracking-tight">Hourly Activity and Fraud Cases</h2>
-            </div>
-            <div className="flex-1 w-full h-full min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={hourlyActivity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="activity" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="fraudCases" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                  <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dy={10} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dx={-10} />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: "12px", fontWeight: "500", paddingTop: "15px" }} />
-                  <Area type="monotone" dataKey="transactions" name="Transactions" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#activity)" />
-                  <Area type="monotone" dataKey="fraudCases" name="Fraud Cases" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#fraudCases)" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Hourly Activity and Fraud Cases</h2>
+            <div className="flex-1 min-h-0">
+              <Line data={hourlyActivityData} options={hourlyActivityOptions} />
             </div>
           </div>
 
@@ -248,7 +304,7 @@ export default function Dashboard() {
               <CreditCard className="w-5 h-5 text-primary" />
               <h2 className="text-base font-bold text-foreground tracking-tight">Top Card Brands</h2>
             </div>
-            <div className="space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
               {cardBrands.length === 0 && <p className="text-sm text-muted-foreground">No card-brand aggregates available.</p>}
               {cardBrands.map((brand) => (
                 <div key={brand.name} className="space-y-2">
@@ -257,7 +313,10 @@ export default function Dashboard() {
                     <span className="text-muted-foreground">{brand.transactions} txns</span>
                   </div>
                   <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, brand.fraudRate * 4)}%` }} />
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300"
+                      style={{ width: `${Math.max(8, Math.min(100, (brand.fraudRate / maxCardFraudRate) * 100))}%` }}
+                    />
                   </div>
                   <p className="text-xs text-muted-foreground">Fraud rate: {brand.fraudRate}%</p>
                 </div>

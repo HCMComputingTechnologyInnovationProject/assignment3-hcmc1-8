@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ RESULTS_ROOT = APP_ROOT / "results"
 MODELS_ROOT = RESULTS_ROOT / "models"
 METRICS_ROOT = RESULTS_ROOT / "metrics"
 DATASET_PATH = APP_ROOT / "data" / "raw" / "train_transaction.csv"
+PREDICTIONS_DB_PATH = APP_ROOT / "data" / "predictions.db"
 DATASET_EPOCH = datetime(2017, 12, 1, tzinfo=timezone.utc)
 DATASET_SAMPLE_ROWS = 150_000
 PRODUCT_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6"]
@@ -45,13 +47,35 @@ app.add_middleware(
 
 model_artifact: dict[str, Any] | None = None
 historical_transactions: pd.DataFrame | None = None
-live_predictions: list[dict[str, Any]] = []
 
 
 class PredictionInput(BaseModel):
     amount: float = Field(..., gt=0)
     transaction_dt: int = Field(..., ge=0, description="Seconds since the dataset reference start time.")
     product_code: str = Field(..., min_length=1, max_length=8)
+
+
+def ensure_storage() -> None:
+    PREDICTIONS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(PREDICTIONS_DB_PATH) as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                transaction_dt INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                product_code TEXT NOT NULL,
+                card_brand TEXT NOT NULL,
+                is_fraud INTEGER NOT NULL,
+                fraud_probability REAL NOT NULL,
+                risk_score INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                source TEXT NOT NULL
+            )
+            """
+        )
+        connection.commit()
 
 
 def load_historical_transactions() -> pd.DataFrame:
@@ -89,32 +113,54 @@ def transaction_timestamp(transaction_dt: int) -> str:
     return timestamp.isoformat().replace("+00:00", "Z")
 
 
-def get_live_predictions_frame() -> pd.DataFrame:
-    if not live_predictions:
+def fetch_persisted_predictions(limit: int | None = None) -> list[dict[str, Any]]:
+    query = """
+        SELECT id, created_at, transaction_dt, amount, product_code, card_brand,
+               is_fraud, fraud_probability, risk_score, status, source
+        FROM predictions
+        ORDER BY created_at DESC, id DESC
+    """
+    parameters: tuple[Any, ...] = ()
+    if limit is not None:
+        query += " LIMIT ?"
+        parameters = (limit,)
+
+    with sqlite3.connect(PREDICTIONS_DB_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(query, parameters).fetchall()
+    return [dict(row) for row in rows]
+
+
+def persisted_predictions_frame() -> pd.DataFrame:
+    rows = fetch_persisted_predictions()
+    if not rows:
         return pd.DataFrame(columns=DATASET_COLUMNS)
 
-    rows = [
-        {
-            "TransactionID": item["transaction_id"],
-            "TransactionDT": item["transaction_dt"],
-            "TransactionAmt": item["amount"],
-            "ProductCD": item["product_code"],
-            "card4": item["card_brand"],
-            "isFraud": item["is_fraud"],
-        }
-        for item in live_predictions
-    ]
-    return pd.DataFrame(rows, columns=DATASET_COLUMNS)
+    frame = pd.DataFrame(
+        [
+            {
+                "TransactionID": f"PRED-{row['id']:04d}",
+                "TransactionDT": int(row["transaction_dt"]),
+                "TransactionAmt": float(row["amount"]),
+                "ProductCD": str(row["product_code"]),
+                "card4": str(row["card_brand"]),
+                "isFraud": int(row["is_fraud"]),
+            }
+            for row in rows
+        ],
+        columns=DATASET_COLUMNS,
+    )
+    return frame
 
 
 def combined_transactions_frame() -> pd.DataFrame:
     if historical_transactions is None:
         return pd.DataFrame(columns=DATASET_COLUMNS)
 
-    live_frame = get_live_predictions_frame()
-    if live_frame.empty:
+    persisted_frame = persisted_predictions_frame()
+    if persisted_frame.empty:
         return historical_transactions.copy()
-    return pd.concat([historical_transactions, live_frame], ignore_index=True)
+    return pd.concat([historical_transactions, persisted_frame], ignore_index=True)
 
 
 def overall_fraud_rate(frame: pd.DataFrame) -> float:
@@ -162,10 +208,7 @@ def feature_importance_from_artifact() -> list[dict[str, float]]:
     if model_artifact is None:
         return []
     raw_importance = model_artifact.get("feature_importance", [])
-    return [
-        {"name": str(item["name"]), "value": float(item["value"])}
-        for item in raw_importance
-    ]
+    return [{"name": str(item["name"]), "value": float(item["value"])} for item in raw_importance]
 
 
 def infer_prediction(features: pd.DataFrame) -> tuple[int, float]:
@@ -179,11 +222,9 @@ def infer_prediction(features: pd.DataFrame) -> tuple[int, float]:
         prediction = 1 if raw_prediction == -1 else 0
         score = float((-model.score_samples(transformed))[0])
         probability = float(max(0.0, min(1.0, score / (score + 1))))
-    else:
-        prediction = int(model.predict(features)[0])
-
-    if "preprocessor" in model_artifact:
         return prediction, probability
+
+    prediction = int(model.predict(features)[0])
     if hasattr(model, "predict_proba"):
         probability = float(model.predict_proba(features)[0][1])
     elif hasattr(model, "decision_function"):
@@ -191,14 +232,49 @@ def infer_prediction(features: pd.DataFrame) -> tuple[int, float]:
         probability = float(1 / (1 + np.exp(-score)))
     else:
         probability = float(prediction)
-
     return prediction, probability
 
 
-def append_live_prediction(payload: PredictionInput, prediction: int, probability: float, risk_score: int) -> dict[str, Any]:
-    transaction_id = f"LIVE-{len(live_predictions) + 1:04d}"
-    item = {
-        "transaction_id": transaction_id,
+def persist_prediction(payload: PredictionInput, prediction: int, probability: float, risk_score: int) -> dict[str, Any]:
+    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    status = "blocked" if prediction == 1 else "approved"
+
+    with sqlite3.connect(PREDICTIONS_DB_PATH) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO predictions (
+                created_at,
+                transaction_dt,
+                amount,
+                product_code,
+                card_brand,
+                is_fraud,
+                fraud_probability,
+                risk_score,
+                status,
+                source
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                created_at,
+                int(payload.transaction_dt),
+                float(payload.amount),
+                payload.product_code,
+                "User Submission",
+                int(prediction),
+                float(probability),
+                int(risk_score),
+                status,
+                "sqlite_prediction",
+            ),
+        )
+        connection.commit()
+        inserted_id = int(cursor.lastrowid)
+
+    return {
+        "id": inserted_id,
+        "created_at": created_at,
         "transaction_dt": int(payload.transaction_dt),
         "amount": float(payload.amount),
         "product_code": payload.product_code,
@@ -206,16 +282,12 @@ def append_live_prediction(payload: PredictionInput, prediction: int, probabilit
         "is_fraud": int(prediction),
         "fraud_probability": float(probability),
         "risk_score": int(risk_score),
-        "status": "blocked" if prediction == 1 else "approved",
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "source": "live_prediction",
+        "status": status,
+        "source": "sqlite_prediction",
     }
-    live_predictions.insert(0, item)
-    del live_predictions[100:]
-    return item
 
 
-def transaction_record(row: pd.Series) -> dict[str, Any]:
+def historical_transaction_record(row: pd.Series) -> dict[str, Any]:
     probability = 0.97 if int(row["isFraud"]) == 1 else 0.08
     frame = combined_transactions_frame()
     risk_score = compute_risk_score(
@@ -238,17 +310,17 @@ def transaction_record(row: pd.Series) -> dict[str, Any]:
     }
 
 
-def live_transaction_record(item: dict[str, Any]) -> dict[str, Any]:
+def persisted_transaction_record(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": item["transaction_id"],
-        "timestamp": item["timestamp"],
-        "cardBrand": item["card_brand"],
-        "productCode": item["product_code"],
-        "amount": float(item["amount"]),
-        "riskScore": int(item["risk_score"]),
-        "status": item["status"],
-        "isFraud": int(item["is_fraud"]),
-        "source": item["source"],
+        "id": f"PRED-{row['id']:04d}",
+        "timestamp": row["created_at"],
+        "cardBrand": row["card_brand"],
+        "productCode": row["product_code"],
+        "amount": float(row["amount"]),
+        "riskScore": int(row["risk_score"]),
+        "status": row["status"],
+        "isFraud": int(row["is_fraud"]),
+        "source": row["source"],
     }
 
 
@@ -274,10 +346,10 @@ def alert_record_from_transaction(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def recent_transaction_records(limit: int = 50) -> list[dict[str, Any]]:
-    records = [live_transaction_record(item) for item in live_predictions]
+    records = [persisted_transaction_record(row) for row in fetch_persisted_predictions(limit=limit)]
     if historical_transactions is not None and not historical_transactions.empty:
         top_rows = historical_transactions.sort_values("TransactionDT", ascending=False).head(limit)
-        records.extend(transaction_record(row) for _, row in top_rows.iterrows())
+        records.extend(historical_transaction_record(row) for _, row in top_rows.iterrows())
 
     records.sort(key=lambda item: item["timestamp"], reverse=True)
     return records[:limit]
@@ -327,16 +399,14 @@ def amount_vs_fraud_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
         fraudAmount=("FraudAmount", "sum"),
     )
 
-    records = []
-    for _, row in grouped.reset_index().iterrows():
-        records.append(
-            {
-                "bucket": str(row["bucket"]),
-                "transactionAmount": round(float(row["transactionAmount"]) / 1_000, 2),
-                "fraudAmount": round(float(row["fraudAmount"]) / 1_000, 2),
-            }
-        )
-    return records
+    return [
+        {
+            "bucket": str(row["bucket"]),
+            "transactionAmount": round(float(row["transactionAmount"]) / 1_000, 2),
+            "fraudAmount": round(float(row["fraudAmount"]) / 1_000, 2),
+        }
+        for _, row in grouped.reset_index().iterrows()
+    ]
 
 
 def product_breakdown_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
@@ -402,8 +472,8 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
     riskiest_product = product_rates.index[0]
     riskiest_rate = float(product_rates.iloc[0] * 100)
     avg_fraud_amount = float(fraud_only["TransactionAmt"].mean()) if not fraud_only.empty else 0.0
-    avg_all_amount = float(frame["TransactionAmt"].mean()) if not frame.empty else 0.0
-    recent_live_fraud = sum(1 for item in live_predictions[:10] if item["is_fraud"] == 1)
+    avg_all_amount = float(frame["TransactionAmt"].mean())
+    recent_persisted_fraud = sum(1 for item in fetch_persisted_predictions(limit=10) if int(item["is_fraud"]) == 1)
 
     return [
         {
@@ -420,9 +490,9 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
         },
         {
             "id": 3,
-            "title": "Live prediction feed is updating backend state",
-            "description": f"The last 10 live predictions contain {recent_live_fraud} suspected fraud cases that are already reflected in the dashboard totals.",
-            "severity": "low" if recent_live_fraud == 0 else "medium",
+            "title": "SQLite-backed predictions survive server restart",
+            "description": f"The last 10 persisted predictions contain {recent_persisted_fraud} suspected fraud cases and remain available after restarting the API.",
+            "severity": "low" if recent_persisted_fraud == 0 else "medium",
         },
     ]
 
@@ -431,6 +501,7 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
 def startup_event() -> None:
     global model_artifact, historical_transactions
 
+    ensure_storage()
     historical_transactions = load_historical_transactions()
     artifact_path = resolve_deployment_artifact()
     if artifact_path is not None:
@@ -439,7 +510,9 @@ def startup_event() -> None:
     else:
         print("No trained deployment model found yet.")
 
+    persisted_count = len(fetch_persisted_predictions())
     print(f"Loaded historical transactions: {len(historical_transactions):,} rows from {DATASET_PATH.name}")
+    print(f"Loaded persisted predictions from SQLite: {persisted_count}")
 
 
 @app.get("/api/metadata/prediction-options")
@@ -457,8 +530,14 @@ def prediction_options() -> dict[str, Any]:
 
 
 @app.get("/api/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+def health_check() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "storage": "sqlite",
+        "database_path": str(PREDICTIONS_DB_PATH),
+        "persisted_predictions": len(fetch_persisted_predictions()),
+        "model": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
+    }
 
 
 @app.post("/api/predict")
@@ -481,7 +560,7 @@ def predict(payload: PredictionInput) -> dict[str, Any]:
         is_fraud=prediction,
         frame=frame,
     )
-    transaction = append_live_prediction(payload, prediction, probability, risk_score)
+    transaction = persist_prediction(payload, prediction, probability, risk_score)
 
     return {
         "is_fraud": int(prediction),
@@ -489,7 +568,7 @@ def predict(payload: PredictionInput) -> dict[str, Any]:
         "risk_score": int(risk_score),
         "model_name": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
         "feature_importance": feature_importance_from_artifact(),
-        "transaction": live_transaction_record(transaction),
+        "transaction": persisted_transaction_record(transaction),
     }
 
 
@@ -558,7 +637,7 @@ def get_alert_details(alert_id: str) -> dict[str, Any]:
             },
             {
                 "title": "Backend source",
-                "description": f"This alert was generated from {alert['source'].replace('_', ' ')} and is not backed by mock data.",
+                "description": f"This alert was generated from {alert['source'].replace('_', ' ')} and is backed by SQLite persistence.",
                 "severity": "low",
             },
         ],
@@ -575,6 +654,7 @@ def get_model_comparison() -> list[dict[str, Any]]:
 
 if __name__ == "__main__":
     import uvicorn
+
     host = os.getenv("API_HOST", "127.0.0.1")
     port = int(os.getenv("API_PORT", "8000"))
 

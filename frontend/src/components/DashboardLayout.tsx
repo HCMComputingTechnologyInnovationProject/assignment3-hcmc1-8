@@ -56,7 +56,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     const loadAlerts = async () => {
       try {
-        const data = await fetchJson<AlertNotification[]>("/api/alerts?limit=5");
+        const data = await fetchJson<AlertNotification[]>("/api/alerts?limit=30");
         if (active) {
           setAlerts(data);
         }
@@ -131,7 +131,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   {alerts.length === 0 ? (
                     <div className="p-8 text-center text-sm text-muted-foreground">No active alerts from the backend right now.</div>
                   ) : (
-                    alerts.map((alert) => (
+                    alerts.slice(0, 5).map((alert) => (
                       <Link
                         key={alert.id}
                         to={`/alerts/${alert.id}`}
