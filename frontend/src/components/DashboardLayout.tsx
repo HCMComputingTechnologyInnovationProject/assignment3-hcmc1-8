@@ -57,7 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     const loadAlerts = async () => {
       try {
-        const data = await fetchJson<AlertNotification[]>(`/api/alerts?limit=${maxVisibleNotifications}`);
+        const data = await fetchJson<AlertNotification[]>("/api/alerts?limit=30");
         if (active) {
           setAlerts(data);
         }
@@ -115,7 +115,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <Bell className="h-5 w-5" />
               {alerts.length > 0 && (
                 <span className="absolute top-0 right-0 max-h-4 min-w-[16px] rounded-full bg-risk-critical px-1 text-[10px] font-bold flex items-center justify-center text-primary-foreground">
-                  {Math.min(alerts.length, maxVisibleNotifications)}
+                  {alerts.length}
                 </span>
               )}
             </Button>
@@ -123,7 +123,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-border bg-secondary/30 flex justify-between items-center">
-                  <span className="font-semibold text-sm">Notifications ({Math.min(alerts.length, maxVisibleNotifications)})</span>
+                  <span className="font-semibold text-sm">Notifications ({alerts.length})</span>
                   <Link to="/alerts" className="text-xs text-primary hover:underline font-medium" onClick={() => setShowNotifications(false)}>
                     View all
                   </Link>

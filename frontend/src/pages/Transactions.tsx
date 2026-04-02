@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { fetchJson } from "@/lib/api";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCcw, Search } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -39,27 +39,29 @@ export default function Transactions() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [riskRange, setRiskRange] = useState([0]);
   const [page, setPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadTransactions = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const data = await fetchJson<TransactionRecord[]>("/api/transactions?limit=150");
+      setTransactions(data);
+      setError(null);
+    } catch {
+      setTransactions([]);
+      setError("Could not load transactions from the backend API.");
+    } finally {
+      if (isManual) setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
-
-    const loadTransactions = async () => {
-      try {
-        const data = await fetchJson<TransactionRecord[]>("/api/transactions?limit=120");
-        if (active) {
-          setTransactions(data);
-          setError(null);
-        }
-      } catch {
-        if (active) {
-          setTransactions([]);
-          setError("Could not load transactions from the backend API.");
-        }
-      }
-    };
+    const interval = window.setInterval(() => {
+      if (active) loadTransactions();
+    }, 10000);
 
     loadTransactions();
-    const interval = window.setInterval(loadTransactions, 5000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -92,9 +94,21 @@ export default function Transactions() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
-          <p className="text-muted-foreground text-sm">{filtered.length} transactions loaded from the backend dataset and live prediction feed.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
+            <p className="text-muted-foreground text-sm">{filtered.length} transactions loaded from the backend dataset and live prediction feed.</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => loadTransactions(true)} 
+            disabled={refreshing}
+            className="flex items-center gap-2 border-primary/20 bg-primary/5 hover:bg-primary/10"
+          >
+            <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh Data"}
+          </Button>
         </div>
 
         <div className="glass-card p-4 flex flex-wrap items-end gap-4">

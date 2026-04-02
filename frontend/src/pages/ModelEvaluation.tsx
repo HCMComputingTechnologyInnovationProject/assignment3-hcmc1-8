@@ -59,19 +59,19 @@ export default function ModelEvaluation() {
     datasets: [
       {
         label: "Precision",
-        data: metrics.map((metric) => Number((metric.precision * 100).toFixed(2))),
+        data: metrics.map((metric) => Number(metric.precision.toFixed(4))),
         backgroundColor: "#8b5cf6",
         borderRadius: 8,
       },
       {
         label: "Recall",
-        data: metrics.map((metric) => Number((metric.recall * 100).toFixed(2))),
+        data: metrics.map((metric) => Number(metric.recall.toFixed(4))),
         backgroundColor: "#ec4899",
         borderRadius: 8,
       },
       {
         label: "F1 Score",
-        data: metrics.map((metric) => Number((metric.f1_score * 100).toFixed(2))),
+        data: metrics.map((metric) => Number(metric.f1_score.toFixed(4))),
         backgroundColor: "#10b981",
         borderRadius: 8,
       },
@@ -100,10 +100,10 @@ export default function ModelEvaluation() {
       },
       y: {
         min: 0,
-        max: 100,
+        max: 1.0,
         ticks: {
           color: "rgba(148, 163, 184, 0.9)",
-          callback: (value) => `${value}%`,
+          callback: (value) => value,
         },
         grid: { color: "rgba(148, 163, 184, 0.15)" },
       },
@@ -116,7 +116,11 @@ export default function ModelEvaluation() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">Model Evaluation</h1>
-            <p className="text-muted-foreground text-sm mt-1">This comparison uses precision, recall and F1-score from one shared stratified test split.</p>
+            <p className="text-muted-foreground text-sm mt-2 leading-relaxed max-w-3xl">
+              This comparison provides performance metrics derived from the <strong>IEEE-CIS Fraud Detection dataset</strong>. 
+              Each model was trained on a shared training set and evaluated against a stratified test split to ensure 
+              consistency in Precision, Recall, and F1-score comparisons.
+            </p>
           </div>
           <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-medium">
             <Brain className="w-5 h-5" />
@@ -151,9 +155,9 @@ export default function ModelEvaluation() {
                       <Brain className="w-4 h-4 text-primary" />
                       {model.name}
                     </td>
-                    <td className="px-6 py-4">{(model.precision * 100).toFixed(2)}%</td>
-                    <td className="px-6 py-4">{(model.recall * 100).toFixed(2)}%</td>
-                    <td className="px-6 py-4 font-semibold">{(model.f1_score * 100).toFixed(2)}%</td>
+                    <td className="px-6 py-4">{model.precision.toFixed(4)}</td>
+                    <td className="px-6 py-4">{model.recall.toFixed(4)}</td>
+                    <td className="px-6 py-4 font-semibold">{model.f1_score.toFixed(4)}</td>
                   </tr>
                 ))}
               </tbody>

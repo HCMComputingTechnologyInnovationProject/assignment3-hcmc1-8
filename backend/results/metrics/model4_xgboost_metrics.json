@@ -2,41 +2,41 @@
   "name": "XGBoost",
   "model_key": "xgboost",
   "artifact": "model4_xgboost.pkl",
-  "accuracy": 0.97225,
-  "precision": 0.5454545454545454,
-  "recall": 0.05357142857142857,
-  "f1_score": 0.0975609756097561,
+  "accuracy": 0.9751,
+  "precision": 0.8888888888888888,
+  "recall": 0.03125,
+  "f1_score": 0.06037735849056604,
   "confusion_matrix": {
-    "true_negative": 3883,
-    "false_positive": 5,
-    "false_negative": 106,
-    "true_positive": 6
+    "true_negative": 19486,
+    "false_positive": 2,
+    "false_negative": 496,
+    "true_positive": 16
   },
   "classification_report": {
     "0": {
-      "precision": 0.9734269240411131,
-      "recall": 0.9987139917695473,
-      "f1-score": 0.98590834073886,
-      "support": 3888.0
+      "precision": 0.9751776598939045,
+      "recall": 0.9998973727422004,
+      "f1-score": 0.987382822396757,
+      "support": 19488.0
     },
     "1": {
-      "precision": 0.5454545454545454,
-      "recall": 0.05357142857142857,
-      "f1-score": 0.0975609756097561,
-      "support": 112.0
+      "precision": 0.8888888888888888,
+      "recall": 0.03125,
+      "f1-score": 0.06037735849056604,
+      "support": 512.0
     },
-    "accuracy": 0.97225,
+    "accuracy": 0.9751,
     "macro avg": {
-      "precision": 0.7594407347478292,
-      "recall": 0.526142710170488,
-      "f1-score": 0.5417346581743081,
-      "support": 4000.0
+      "precision": 0.9320332743913966,
+      "recall": 0.5155736863711002,
+      "f1-score": 0.5238800904436616,
+      "support": 20000.0
     },
     "weighted avg": {
-      "precision": 0.9614436974406892,
-      "recall": 0.97225,
-      "f1-score": 0.9610346145152452,
-      "support": 4000.0
+      "precision": 0.972968667356176,
+      "recall": 0.9751,
+      "f1-score": 0.9636514825207587,
+      "support": 20000.0
     }
   },
   "split": {
@@ -47,28 +47,28 @@
       "ProductCD"
     ],
     "target_column": "isFraud",
-    "sample_rows_loaded": 20000,
-    "train_rows": 16000,
-    "test_rows": 4000,
+    "sample_rows_loaded": 100000,
+    "train_rows": 80000,
+    "test_rows": 20000,
     "test_size": 0.2,
     "random_state": 42,
-    "fraud_rate_train": 0.028125,
-    "fraud_rate_test": 0.028
+    "fraud_rate_train": 0.0256125,
+    "fraud_rate_test": 0.0256
   },
   "feature_importance": [
     {
       "name": "ProductCD",
-      "value": 79.2
+      "value": 83.57
     },
     {
       "name": "TransactionAmt",
-      "value": 11.04
+      "value": 8.85
     },
     {
       "name": "TransactionDT",
-      "value": 9.75
+      "value": 7.58
     }
   ],
   "supports_probability": true,
-  "auc_roc": 0.7564265964873604
+  "auc_roc": 0.7905148661195351
 }

@@ -30,6 +30,7 @@ const formSchema = z.object({
   amount: z.string().min(1, "Required").refine((value) => !Number.isNaN(Number(value)) && Number(value) > 0, "Must be a positive number"),
   productCode: z.string().min(1, "Required"),
   transactionDt: z.string().min(1, "Required").refine((value) => Number.isInteger(Number(value)) && Number(value) >= 0, "Must be a non-negative integer"),
+  modelId: z.string().min(1, "Required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,7 +76,7 @@ export default function Prediction() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { amount: "", productCode: "", transactionDt: "" },
+    defaultValues: { amount: "", productCode: "", transactionDt: "", modelId: "xgboost" },
   });
 
   useEffect(() => {
@@ -121,6 +122,7 @@ export default function Prediction() {
           amount: Number(data.amount),
           transaction_dt: Number(data.transactionDt),
           product_code: data.productCode,
+          model_id: data.modelId,
         }),
       });
 
@@ -167,7 +169,31 @@ export default function Prediction() {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="modelId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ML Model Selection</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="bg-secondary border-border border-primary/20">
+                            <SelectValue placeholder="Select Model" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="xgboost">XG Boost</SelectItem>
+                          <SelectItem value="random_forest">Random Forest</SelectItem>
+                          <SelectItem value="logistic_regression">Logistic Regression</SelectItem>
+                          <SelectItem value="isolation_forest">Isolation Forest</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="amount"
@@ -236,16 +262,14 @@ export default function Prediction() {
 
             {loadingOptions && <p className="mt-4 text-xs text-muted-foreground">Loading ProductCD options from the backend...</p>}
             {error && <p className="mt-4 text-xs text-risk-warning">{error}</p>}
-            <div className="mt-4 rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
-              Prediction flow: your form values are sent to <code>/api/predict</code>, the deployed model scores the transaction, and the result is stored in SQLite so it can reappear in Transactions, Alerts, and Dashboard after a restart.
-            </div>
+            
           </CardContent>
         </Card>
 
         <div className="lg:col-span-3 space-y-6">
           {!result ? (
             <Card className="bg-card border-border flex items-center justify-center min-h-[300px]">
-              <p className="text-muted-foreground text-sm">Submit a transaction to see real API inference results.</p>
+              <p className="text-muted-foreground text-sm">Submit a transaction to see results.</p>
             </Card>
           ) : (
             <>

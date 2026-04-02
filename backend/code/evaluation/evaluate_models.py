@@ -20,7 +20,6 @@ def get_performance_metrics(y_true, y_pred, model_name):
         "Model": model_name,
         "Precision": report['1']['precision'],
         "Recall": report['1']['recall'],
-        "F1-Score": report['1']['f1-score'],
-        "Accuracy": report['accuracy']
+        "F1-Score": report['1']['f1-score']
     }
     return metrics

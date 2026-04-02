@@ -11,7 +11,7 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -45,14 +45,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model_artifact: dict[str, Any] | None = None
-historical_transactions: pd.DataFrame | None = None
+model_artifacts: dict[str, Any] = {}
+global_historical_frame: pd.DataFrame | None = None
+global_predictions_frame: pd.DataFrame | None = None
+global_combined_frame: pd.DataFrame | None = None
+cached_risk_stats: dict[str, Any] = {}
+
+
+def build_combined_frame() -> None:
+    global global_combined_frame
+    if global_historical_frame is None:
+        return
+
+    if global_predictions_frame is None or global_predictions_frame.empty:
+        global_combined_frame = global_historical_frame.copy()
+    else:
+        global_combined_frame = pd.concat([global_historical_frame, global_predictions_frame], ignore_index=True)
+
+    refresh_risk_stats(global_combined_frame)
+
+
+def refresh_risk_stats(frame: pd.DataFrame) -> None:
+    global cached_risk_stats
+    if frame.empty:
+        cached_risk_stats = {
+            "amount_p95": 0.0,
+            "baseline_fraud_rate": 0.0,
+            "product_fraud_rates": {},
+        }
+        return
+
+    cached_risk_stats = {
+        "amount_p95": float(frame["TransactionAmt"].quantile(0.95)),
+        "baseline_fraud_rate": overall_fraud_rate(frame),
+        "product_fraud_rates": product_fraud_rates(frame),
+    }
+
 
 
 class PredictionInput(BaseModel):
     amount: float = Field(..., gt=0)
     transaction_dt: int = Field(..., ge=0, description="Seconds since the dataset reference start time.")
     product_code: str = Field(..., min_length=1, max_length=8)
+    model_id: str = Field(default="xgboost", description="The ID of the model to use for prediction.")
 
 
 def ensure_storage() -> None:
@@ -89,24 +124,22 @@ def load_historical_transactions() -> pd.DataFrame:
     return frame
 
 
-def resolve_deployment_artifact() -> Path | None:
+def resolve_deployment_artifact(model_id: str = "xgboost") -> Path | None:
     deployment_target_path = METRICS_ROOT / "deployment_target.json"
-    if deployment_target_path.exists():
+    if deployment_target_path.exists() and model_id == "xgboost":
         deployment_target = json.loads(deployment_target_path.read_text(encoding="utf-8"))
         candidate = MODELS_ROOT / deployment_target["artifact"]
         if candidate.exists():
             return candidate
 
-    for candidate_name in (
-        "model4_xgboost.pkl",
-        "model3_random_forest.pkl",
-        "model1_logistic_regression.pkl",
-        "model2_isolation_forest.pkl",
-    ):
-        candidate = MODELS_ROOT / candidate_name
-        if candidate.exists():
-            return candidate
-    return None
+    model_files = {
+        "xgboost": "model4_xgboost.pkl",
+        "random_forest": "model3_random_forest.pkl",
+        "logistic_regression": "model1_logistic_regression.pkl",
+        "isolation_forest": "model2_isolation_forest.pkl",
+    }
+    candidate = MODELS_ROOT / model_files.get(model_id, "")
+    return candidate if candidate.exists() else None
 
 
 def transaction_timestamp(transaction_dt: int) -> str:
@@ -137,7 +170,7 @@ def persisted_predictions_frame() -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=DATASET_COLUMNS)
 
-    frame = pd.DataFrame(
+    return pd.DataFrame(
         [
             {
                 "TransactionID": f"PRED-{row['id']:04d}",
@@ -151,17 +184,12 @@ def persisted_predictions_frame() -> pd.DataFrame:
         ],
         columns=DATASET_COLUMNS,
     )
-    return frame
 
 
 def combined_transactions_frame() -> pd.DataFrame:
-    if historical_transactions is None:
-        return pd.DataFrame(columns=DATASET_COLUMNS)
-
-    persisted_frame = persisted_predictions_frame()
-    if persisted_frame.empty:
-        return historical_transactions.copy()
-    return pd.concat([historical_transactions, persisted_frame], ignore_index=True)
+    if global_combined_frame is not None:
+        return global_combined_frame
+    return pd.DataFrame(columns=DATASET_COLUMNS)
 
 
 def overall_fraud_rate(frame: pd.DataFrame) -> float:
@@ -181,15 +209,11 @@ def compute_risk_score(
     product_code: str,
     probability: float,
     is_fraud: int,
-    frame: pd.DataFrame,
 ) -> int:
-    if frame.empty:
-        base_score = probability * 100
-        return int(max(1, min(99, round(base_score))))
-
-    amount_p95 = float(frame["TransactionAmt"].quantile(0.95))
-    baseline_fraud_rate = overall_fraud_rate(frame)
-    product_rate = product_fraud_rates(frame).get(product_code, baseline_fraud_rate)
+    # Use cached stats to avoid heavy pandas operations in every record processing call.
+    amount_p95 = cached_risk_stats.get("amount_p95", 0.0)
+    baseline_fraud_rate = cached_risk_stats.get("baseline_fraud_rate", 0.0)
+    product_rate = cached_risk_stats.get("product_fraud_rates", {}).get(product_code, baseline_fraud_rate)
 
     score = probability * 100
     if amount >= amount_p95:
@@ -212,13 +236,14 @@ def feature_importance_from_artifact() -> list[dict[str, float]]:
     return [{"name": str(item["name"]), "value": float(item["value"])} for item in raw_importance]
 
 
-def infer_prediction(features: pd.DataFrame) -> tuple[int, float]:
-    if model_artifact is None:
-        raise HTTPException(status_code=503, detail="Model not loaded. Run training first.")
+def infer_prediction(features: pd.DataFrame, model_id: str = "xgboost") -> tuple[int, float]:
+    artifact = model_artifacts.get(model_id)
+    if artifact is None:
+        raise HTTPException(status_code=503, detail=f"Model artifact '{model_id}' not loaded.")
 
-    model = model_artifact["model"]
-    if "preprocessor" in model_artifact:
-        transformed = model_artifact["preprocessor"].transform(features)
+    model = artifact["model"]
+    if "preprocessor" in artifact:
+        transformed = artifact["preprocessor"].transform(features)
         raw_prediction = int(model.predict(transformed)[0])
         prediction = 1 if raw_prediction == -1 else 0
         score = float((-model.score_samples(transformed))[0])
@@ -273,6 +298,24 @@ def persist_prediction(payload: PredictionInput, prediction: int, probability: f
         connection.commit()
         inserted_id = int(cursor.lastrowid)
 
+    # Refresh the global predictions frame and rebuild combined frame to maintain live updates.
+    global global_predictions_frame
+    new_row = pd.DataFrame([{
+        "TransactionID": f"PRED-{inserted_id:04d}",
+        "TransactionDT": int(payload.transaction_dt),
+        "TransactionAmt": float(payload.amount),
+        "ProductCD": str(payload.product_code),
+        "card4": "User Submission",
+        "isFraud": int(prediction),
+    }])
+    if global_predictions_frame is None or global_predictions_frame.empty:
+        global_predictions_frame = new_row
+    else:
+        global_predictions_frame = pd.concat([global_predictions_frame, new_row], ignore_index=True)
+    
+    build_combined_frame()
+
+
     return {
         "id": inserted_id,
         "created_at": created_at,
@@ -290,13 +333,11 @@ def persist_prediction(payload: PredictionInput, prediction: int, probability: f
 
 def historical_transaction_record(row: pd.Series) -> dict[str, Any]:
     probability = 0.97 if int(row["isFraud"]) == 1 else 0.08
-    frame = combined_transactions_frame()
     risk_score = compute_risk_score(
         amount=float(row["TransactionAmt"]),
         product_code=str(row["ProductCD"]),
         probability=probability,
         is_fraud=int(row["isFraud"]),
-        frame=frame,
     )
     return {
         "id": str(row["TransactionID"]),
@@ -347,9 +388,17 @@ def alert_record_from_transaction(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def recent_transaction_records(limit: int = 50) -> list[dict[str, Any]]:
+    # Efficient access using the already built global_combined_frame memory pointers.
+    if global_combined_frame is None:
+        return []
+    
+    # SQLite predictions must be mapped specifically back to their verbose dict format.
+    # But for a fast check, we can derive everything from the combined frame which is ready.
+    # Persisted rows IDs must be retrieved correctly for their detailed records.
     records = [persisted_transaction_record(row) for row in fetch_persisted_predictions(limit=limit)]
-    if historical_transactions is not None and not historical_transactions.empty:
-        top_rows = historical_transactions.sort_values("TransactionDT", ascending=False).head(limit)
+    if global_historical_frame is not None and not global_historical_frame.empty:
+        # Data is pre-sorted at startup, so we just take the head.
+        top_rows = global_historical_frame.head(limit)
         records.extend(historical_transaction_record(row) for _, row in top_rows.iterrows())
 
     records.sort(key=lambda item: item["timestamp"], reverse=True)
@@ -357,7 +406,8 @@ def recent_transaction_records(limit: int = 50) -> list[dict[str, Any]]:
 
 
 def recent_alert_records(limit: int = 20) -> list[dict[str, Any]]:
-    fraud_records = [record for record in recent_transaction_records(limit=limit * 5) if record["isFraud"] == 1]
+    # Search through the last 200 transactions regardless of requested limit to maintain count consistency.
+    fraud_records = [record for record in recent_transaction_records(limit=200) if record["isFraud"] == 1]
     alerts = [alert_record_from_transaction(record) for record in fraud_records]
     alerts.sort(key=lambda item: item["timestamp"], reverse=True)
     return alerts[:limit]
@@ -500,19 +550,23 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
 
 @app.on_event("startup")
 def startup_event() -> None:
-    global model_artifact, historical_transactions
+    global model_artifacts, global_historical_frame, global_predictions_frame
 
     ensure_storage()
-    historical_transactions = load_historical_transactions()
-    artifact_path = resolve_deployment_artifact()
-    if artifact_path is not None:
-        model_artifact = joblib.load(artifact_path)
-        print(f"Loaded deployment model: {artifact_path.name}")
-    else:
-        print("No trained deployment model found yet.")
+    global_historical_frame = load_historical_transactions().sort_values("TransactionDT", ascending=False)
+    global_predictions_frame = persisted_predictions_frame()
+    build_combined_frame()
 
-    persisted_count = len(fetch_persisted_predictions())
-    print(f"Loaded historical transactions: {len(historical_transactions):,} rows from {DATASET_PATH.name}")
+    for m_id in ["xgboost", "random_forest", "logistic_regression", "isolation_forest"]:
+        a_path = resolve_deployment_artifact(model_id=m_id)
+        if a_path is not None:
+            model_artifacts[m_id] = joblib.load(a_path)
+            print(f"Loaded artifact: {m_id} -> {a_path.name}")
+        else:
+            print(f"Artifact for {m_id} not found.")
+
+    persisted_count = len(global_predictions_frame)
+    print(f"Loaded historical transactions: {len(global_historical_frame):,} rows")
     print(f"Loaded persisted predictions from SQLite: {persisted_count}")
 
 
@@ -538,7 +592,7 @@ def health_check() -> dict[str, Any]:
         "database_path": str(PREDICTIONS_DB_PATH),
         "database_table": "predictions",
         "persisted_predictions": len(fetch_persisted_predictions()),
-        "model": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
+        "models_loaded": list(model_artifacts.keys()),
     }
 
 
@@ -570,55 +624,43 @@ def predict(payload: PredictionInput) -> dict[str, Any]:
             }
         ]
     )
-    prediction, probability = infer_prediction(features)
-    frame = combined_transactions_frame()
+    # Correctly route prediction to the selected model_id
+    prediction, probability = infer_prediction(features, model_id=payload.model_id)
+    
+    # Calculate risk score using updated memory-cached statistics
     risk_score = compute_risk_score(
         amount=payload.amount,
         product_code=payload.product_code,
         probability=probability,
         is_fraud=prediction,
-        frame=frame,
     )
+    
     transaction = persist_prediction(payload, prediction, probability, risk_score)
+    artifact = model_artifacts.get(payload.model_id)
 
     return {
         "is_fraud": int(prediction),
         "fraud_probability": round(float(probability), 6),
         "risk_score": int(risk_score),
-        "model_name": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
-        "feature_importance": feature_importance_from_artifact(),
+        "model_name": artifact.get("display_name", payload.model_id) if artifact else payload.model_id,
+        "feature_importance": feature_importance_from_artifact() if payload.model_id == "xgboost" else [],
         "transaction": persisted_transaction_record(transaction),
     }
 
 
-@app.get("/api/dashboard/overview")
-def get_dashboard_overview() -> dict[str, Any]:
-    return dashboard_overview_payload(combined_transactions_frame())
-
-
-@app.get("/api/dashboard/charts/amount-vs-fraud")
-def get_amount_vs_fraud_chart() -> list[dict[str, Any]]:
-    return amount_vs_fraud_chart(combined_transactions_frame())
-
-
-@app.get("/api/dashboard/charts/products")
-def get_product_breakdown_chart() -> list[dict[str, Any]]:
-    return product_breakdown_chart(combined_transactions_frame())
-
-
-@app.get("/api/dashboard/charts/hourly-activity")
-def get_hourly_activity_chart() -> list[dict[str, Any]]:
-    return hourly_activity_chart(combined_transactions_frame())
-
-
-@app.get("/api/dashboard/charts/card-brands")
-def get_card_brand_chart() -> list[dict[str, Any]]:
-    return card_brand_breakdown(combined_transactions_frame())
-
-
-@app.get("/api/dashboard/insights")
-def get_dashboard_insights() -> list[dict[str, Any]]:
-    return dashboard_insights(combined_transactions_frame())
+@app.get("/api/dashboard/bundle")
+def get_dashboard_bundle() -> dict[str, Any]:
+    frame = combined_transactions_frame()
+    return {
+        "overview": dashboard_overview_payload(frame),
+        "charts": {
+            "amountVsFraud": amount_vs_fraud_chart(frame),
+            "products": product_breakdown_chart(frame),
+            "hourlyActivity": hourly_activity_chart(frame),
+            "cardBrands": card_brand_breakdown(frame),
+        },
+        "insights": dashboard_insights(frame),
+    }
 
 
 @app.get("/api/transactions")

@@ -50,6 +50,17 @@ interface Insight {
   severity: "critical" | "high" | "medium" | "low";
 }
 
+interface DashboardBundle {
+  overview: DashboardOverview;
+  charts: {
+    amountVsFraud: AmountVsFraudPoint[];
+    products: ProductBreakdownPoint[];
+    hourlyActivity: HourlyActivityPoint[];
+    cardBrands: CardBrandPoint[];
+  };
+  insights: Insight[];
+}
+
 const emptyOverview: DashboardOverview = {
   totalVolume: { current: 0, unit: "M" },
   fraudLoss: { current: 0, unit: "K" },
@@ -74,25 +85,18 @@ export default function Dashboard() {
 
     const loadDashboard = async () => {
       try {
-        const [overviewData, amountData, productData, activityData, cardBrandData, insightsData] = await Promise.all([
-          fetchJson<DashboardOverview>("/api/dashboard/overview"),
-          fetchJson<AmountVsFraudPoint[]>("/api/dashboard/charts/amount-vs-fraud"),
-          fetchJson<ProductBreakdownPoint[]>("/api/dashboard/charts/products"),
-          fetchJson<HourlyActivityPoint[]>("/api/dashboard/charts/hourly-activity"),
-          fetchJson<CardBrandPoint[]>("/api/dashboard/charts/card-brands"),
-          fetchJson<Insight[]>("/api/dashboard/insights"),
-        ]);
+        const data = await fetchJson<DashboardBundle>("/api/dashboard/bundle");
 
         if (!active) {
           return;
         }
 
-        setOverview(overviewData);
-        setAmountVsFraud(amountData);
-        setProducts(productData);
-        setHourlyActivity(activityData);
-        setCardBrands(cardBrandData);
-        setInsights(insightsData);
+        setOverview(data.overview);
+        setAmountVsFraud(data.charts.amountVsFraud);
+        setProducts(data.charts.products);
+        setHourlyActivity(data.charts.hourlyActivity);
+        setCardBrands(data.charts.cardBrands);
+        setInsights(data.insights);
       } catch {
         if (!active) {
           return;
@@ -107,7 +111,7 @@ export default function Dashboard() {
     };
 
     loadDashboard();
-    const interval = window.setInterval(loadDashboard, 5000);
+    const interval = window.setInterval(loadDashboard, 15000);
     return () => {
       active = false;
       window.clearInterval(interval);
