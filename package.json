@@ -9,6 +9,7 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "python backend/api_server.py",
     "train": "python backend/code/training/train_and_export.py --rows 20000",
+    "db:show": "python backend/tools/inspect_predictions_db.py",
     "install-all": "npm install --prefix frontend && pip install -r backend/requirements.txt"
   },
   "description": "Root management for SentinelAI Fullstack Project",

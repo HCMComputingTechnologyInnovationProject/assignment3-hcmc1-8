@@ -98,6 +98,7 @@ def resolve_deployment_artifact() -> Path | None:
             return candidate
 
     for candidate_name in (
+        "model4_xgboost.pkl",
         "model3_random_forest.pkl",
         "model1_logistic_regression.pkl",
         "model2_isolation_forest.pkl",
@@ -535,9 +536,27 @@ def health_check() -> dict[str, Any]:
         "status": "ok",
         "storage": "sqlite",
         "database_path": str(PREDICTIONS_DB_PATH),
+        "database_table": "predictions",
         "persisted_predictions": len(fetch_persisted_predictions()),
         "model": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
     }
+
+
+@app.get("/api/database/summary")
+def get_database_summary() -> dict[str, Any]:
+    rows = fetch_persisted_predictions(limit=5)
+    return {
+        "storage": "sqlite",
+        "database_path": str(PREDICTIONS_DB_PATH),
+        "table": "predictions",
+        "persisted_predictions": len(fetch_persisted_predictions()),
+        "recent_rows": rows,
+    }
+
+
+@app.get("/api/database/predictions")
+def get_database_predictions(limit: int = Query(default=20, ge=1, le=200)) -> list[dict[str, Any]]:
+    return fetch_persisted_predictions(limit=limit)
 
 
 @app.post("/api/predict")

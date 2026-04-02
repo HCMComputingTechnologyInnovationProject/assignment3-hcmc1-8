@@ -202,6 +202,9 @@ export default function Prediction() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        ProductCD is the IEEE dataset product category for the transaction, such as C, H, R, S, or W.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -216,6 +219,9 @@ export default function Prediction() {
                       <FormControl>
                         <Input placeholder="Seconds since dataset start" type="number" step="1" className="bg-secondary border-border" {...field} />
                       </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        TransactionDT is the transaction time offset in seconds from the dataset reference start used during model training.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -230,6 +236,9 @@ export default function Prediction() {
 
             {loadingOptions && <p className="mt-4 text-xs text-muted-foreground">Loading ProductCD options from the backend...</p>}
             {error && <p className="mt-4 text-xs text-risk-warning">{error}</p>}
+            <div className="mt-4 rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+              Prediction flow: your form values are sent to <code>/api/predict</code>, the deployed model scores the transaction, and the result is stored in SQLite so it can reappear in Transactions, Alerts, and Dashboard after a restart.
+            </div>
           </CardContent>
         </Card>
 

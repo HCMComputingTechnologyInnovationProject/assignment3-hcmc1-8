@@ -25,6 +25,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from xgboost import XGBClassifier
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -87,6 +88,23 @@ MODEL_CONFIGS = {
             min_samples_leaf=2,
             class_weight="balanced",
             random_state=DEFAULT_RANDOM_STATE,
+            n_jobs=1,
+        ),
+        supervised=True,
+        supports_probability=True,
+    ),
+    "xgboost": ModelConfig(
+        key="xgboost",
+        display_name="XGBoost",
+        artifact_name="model4_xgboost.pkl",
+        builder=lambda: XGBClassifier(
+            n_estimators=200,
+            max_depth=6,
+            learning_rate=0.1,
+            subsample=0.85,
+            colsample_bytree=0.85,
+            random_state=DEFAULT_RANDOM_STATE,
+            eval_metric="logloss",
             n_jobs=1,
         ),
         supervised=True,
@@ -394,7 +412,7 @@ def train_all_models(
         json.dump(split_summary, handle, indent=2)
 
     comparison: list[dict[str, Any]] = []
-    for model_key in ("logistic_regression", "isolation_forest", "random_forest"):
+    for model_key in ("logistic_regression", "isolation_forest", "random_forest", "xgboost"):
         config = MODEL_CONFIGS[model_key]
         if config.supervised:
             metrics = train_supervised_model(config, X_train, X_test, y_train, y_test, split_summary)

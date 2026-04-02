@@ -35,6 +35,7 @@ interface AlertNotification {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const maxVisibleNotifications = 5;
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -56,7 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     const loadAlerts = async () => {
       try {
-        const data = await fetchJson<AlertNotification[]>("/api/alerts?limit=30");
+        const data = await fetchJson<AlertNotification[]>(`/api/alerts?limit=${maxVisibleNotifications}`);
         if (active) {
           setAlerts(data);
         }
@@ -114,7 +115,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <Bell className="h-5 w-5" />
               {alerts.length > 0 && (
                 <span className="absolute top-0 right-0 max-h-4 min-w-[16px] rounded-full bg-risk-critical px-1 text-[10px] font-bold flex items-center justify-center text-primary-foreground">
-                  {alerts.length}
+                  {Math.min(alerts.length, maxVisibleNotifications)}
                 </span>
               )}
             </Button>
@@ -122,7 +123,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-border bg-secondary/30 flex justify-between items-center">
-                  <span className="font-semibold text-sm">Notifications ({alerts.length})</span>
+                  <span className="font-semibold text-sm">Notifications ({Math.min(alerts.length, maxVisibleNotifications)})</span>
                   <Link to="/alerts" className="text-xs text-primary hover:underline font-medium" onClick={() => setShowNotifications(false)}>
                     View all
                   </Link>
@@ -131,7 +132,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   {alerts.length === 0 ? (
                     <div className="p-8 text-center text-sm text-muted-foreground">No active alerts from the backend right now.</div>
                   ) : (
-                    alerts.slice(0, 5).map((alert) => (
+                    alerts.slice(0, maxVisibleNotifications).map((alert) => (
                       <Link
                         key={alert.id}
                         to={`/alerts/${alert.id}`}

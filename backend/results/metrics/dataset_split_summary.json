@@ -6,11 +6,11 @@
     "ProductCD"
   ],
   "target_column": "isFraud",
-  "sample_rows_loaded": 100000,
-  "train_rows": 80000,
-  "test_rows": 20000,
+  "sample_rows_loaded": 20000,
+  "train_rows": 16000,
+  "test_rows": 4000,
   "test_size": 0.2,
   "random_state": 42,
-  "fraud_rate_train": 0.0256125,
-  "fraud_rate_test": 0.0256
+  "fraud_rate_train": 0.028125,
+  "fraud_rate_test": 0.028
 }

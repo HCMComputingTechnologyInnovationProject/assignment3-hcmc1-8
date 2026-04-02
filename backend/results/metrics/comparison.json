@@ -3,41 +3,41 @@
     "name": "Logistic Regression",
     "model_key": "logistic_regression",
     "artifact": "model1_logistic_regression.pkl",
-    "accuracy": 0.84095,
-    "precision": 0.07350591243208693,
-    "recall": 0.44921875,
-    "f1_score": 0.1263389178797034,
+    "accuracy": 0.82125,
+    "precision": 0.06990014265335236,
+    "recall": 0.4375,
+    "f1_score": 0.12054120541205413,
     "confusion_matrix": {
-      "true_negative": 16589,
-      "false_positive": 2899,
-      "false_negative": 282,
-      "true_positive": 230
+      "true_negative": 3236,
+      "false_positive": 652,
+      "false_negative": 63,
+      "true_positive": 49
     },
     "classification_report": {
       "0": {
-        "precision": 0.9832849267974632,
-        "recall": 0.851241789819376,
-        "f1-score": 0.9125113451965126,
-        "support": 19488.0
+        "precision": 0.9809033040315247,
+        "recall": 0.8323045267489712,
+        "f1-score": 0.9005148184221511,
+        "support": 3888.0
       },
       "1": {
-        "precision": 0.07350591243208693,
-        "recall": 0.44921875,
-        "f1-score": 0.1263389178797034,
-        "support": 512.0
+        "precision": 0.06990014265335236,
+        "recall": 0.4375,
+        "f1-score": 0.12054120541205413,
+        "support": 112.0
       },
-      "accuracy": 0.84095,
+      "accuracy": 0.82125,
       "macro avg": {
-        "precision": 0.5283954196147751,
-        "recall": 0.650230269909688,
-        "f1-score": 0.519425131538108,
-        "support": 20000.0
+        "precision": 0.5254017233424385,
+        "recall": 0.6349022633744856,
+        "f1-score": 0.5105280119171026,
+        "support": 4000.0
       },
       "weighted avg": {
-        "precision": 0.9599945840297096,
-        "recall": 0.84095,
-        "f1-score": 0.8923853310572022,
-        "support": 20000.0
+        "precision": 0.9553952155129359,
+        "recall": 0.82125,
+        "f1-score": 0.8786755572578684,
+        "support": 4000.0
       }
     },
     "split": {
@@ -48,70 +48,70 @@
         "ProductCD"
       ],
       "target_column": "isFraud",
-      "sample_rows_loaded": 100000,
-      "train_rows": 80000,
-      "test_rows": 20000,
+      "sample_rows_loaded": 20000,
+      "train_rows": 16000,
+      "test_rows": 4000,
       "test_size": 0.2,
       "random_state": 42,
-      "fraud_rate_train": 0.0256125,
-      "fraud_rate_test": 0.0256
+      "fraud_rate_train": 0.028125,
+      "fraud_rate_test": 0.028
     },
     "feature_importance": [
       {
         "name": "ProductCD",
-        "value": 89.48
+        "value": 90.93
       },
       {
         "name": "TransactionAmt",
-        "value": 7.5
+        "value": 5.9
       },
       {
         "name": "TransactionDT",
-        "value": 3.02
+        "value": 3.16
       }
     ],
     "supports_probability": true,
-    "auc_roc": 0.6766709200854373
+    "auc_roc": 0.6763898074661963
   },
   {
     "name": "Isolation Forest",
     "model_key": "isolation_forest",
     "artifact": "model2_isolation_forest.pkl",
-    "accuracy": 0.94665,
-    "precision": 0.022375215146299483,
-    "recall": 0.025390625,
-    "f1_score": 0.023787740164684355,
+    "accuracy": 0.94325,
+    "precision": 0.024793388429752067,
+    "recall": 0.026785714285714284,
+    "f1_score": 0.02575107296137339,
     "confusion_matrix": {
-      "true_negative": 18920,
-      "false_positive": 568,
-      "false_negative": 499,
-      "true_positive": 13
+      "true_negative": 3770,
+      "false_positive": 118,
+      "false_negative": 109,
+      "true_positive": 3
     },
     "classification_report": {
       "0": {
-        "precision": 0.9743035171739018,
-        "recall": 0.9708538587848933,
-        "f1-score": 0.9725756290641787,
-        "support": 19488.0
+        "precision": 0.9718999742201598,
+        "recall": 0.9696502057613169,
+        "f1-score": 0.9707737865327668,
+        "support": 3888.0
       },
       "1": {
-        "precision": 0.022375215146299483,
-        "recall": 0.025390625,
-        "f1-score": 0.023787740164684355,
-        "support": 512.0
+        "precision": 0.024793388429752067,
+        "recall": 0.026785714285714284,
+        "f1-score": 0.02575107296137339,
+        "support": 112.0
       },
-      "accuracy": 0.94665,
+      "accuracy": 0.94325,
       "macro avg": {
-        "precision": 0.49833936616010066,
-        "recall": 0.49812224189244664,
-        "f1-score": 0.4981816846144315,
-        "support": 20000.0
+        "precision": 0.49834668132495596,
+        "recall": 0.4982179600235156,
+        "f1-score": 0.4982624297470701,
+        "support": 4000.0
       },
       "weighted avg": {
-        "precision": 0.9499341526419952,
-        "recall": 0.94665,
-        "f1-score": 0.9482866591083517,
-        "support": 20000.0
+        "precision": 0.9453809898180284,
+        "recall": 0.94325,
+        "f1-score": 0.9443131505527678,
+        "support": 4000.0
       }
     },
     "split": {
@@ -122,57 +122,57 @@
         "ProductCD"
       ],
       "target_column": "isFraud",
-      "sample_rows_loaded": 100000,
-      "train_rows": 80000,
-      "test_rows": 20000,
+      "sample_rows_loaded": 20000,
+      "train_rows": 16000,
+      "test_rows": 4000,
       "test_size": 0.2,
       "random_state": 42,
-      "fraud_rate_train": 0.0256125,
-      "fraud_rate_test": 0.0256
+      "fraud_rate_train": 0.028125,
+      "fraud_rate_test": 0.028
     },
     "feature_importance": [],
     "supports_probability": false,
-    "auc_roc": 0.6150107798709462
+    "auc_roc": 0.6589265046296297
   },
   {
     "name": "Random Forest",
     "model_key": "random_forest",
     "artifact": "model3_random_forest.pkl",
-    "accuracy": 0.87955,
-    "precision": 0.11142974190905366,
-    "recall": 0.53125,
-    "f1_score": 0.1842194378598036,
+    "accuracy": 0.945,
+    "precision": 0.22448979591836735,
+    "recall": 0.39285714285714285,
+    "f1_score": 0.2857142857142857,
     "confusion_matrix": {
-      "true_negative": 17319,
-      "false_positive": 2169,
-      "false_negative": 240,
-      "true_positive": 272
+      "true_negative": 3736,
+      "false_positive": 152,
+      "false_negative": 68,
+      "true_positive": 44
     },
     "classification_report": {
       "0": {
-        "precision": 0.9863317956603451,
-        "recall": 0.8887007389162561,
-        "f1-score": 0.9349744918616892,
-        "support": 19488.0
+        "precision": 0.982124079915878,
+        "recall": 0.9609053497942387,
+        "f1-score": 0.9713988559542381,
+        "support": 3888.0
       },
       "1": {
-        "precision": 0.11142974190905366,
-        "recall": 0.53125,
-        "f1-score": 0.1842194378598036,
-        "support": 512.0
+        "precision": 0.22448979591836735,
+        "recall": 0.39285714285714285,
+        "f1-score": 0.2857142857142857,
+        "support": 112.0
       },
-      "accuracy": 0.87955,
+      "accuracy": 0.945,
       "macro avg": {
-        "precision": 0.5488807687846994,
-        "recall": 0.7099753694581281,
-        "f1-score": 0.5595969648607464,
-        "support": 20000.0
+        "precision": 0.6033069379171226,
+        "recall": 0.6768812463256908,
+        "f1-score": 0.628556570834262,
+        "support": 4000.0
       },
       "weighted avg": {
-        "precision": 0.9639343030843122,
-        "recall": 0.87955,
-        "f1-score": 0.9157551624792409,
-        "support": 20000.0
+        "precision": 0.9609103199639478,
+        "recall": 0.945,
+        "f1-score": 0.9521996879875195,
+        "support": 4000.0
       }
     },
     "split": {
@@ -183,29 +183,103 @@
         "ProductCD"
       ],
       "target_column": "isFraud",
-      "sample_rows_loaded": 100000,
-      "train_rows": 80000,
-      "test_rows": 20000,
+      "sample_rows_loaded": 20000,
+      "train_rows": 16000,
+      "test_rows": 4000,
       "test_size": 0.2,
       "random_state": 42,
-      "fraud_rate_train": 0.0256125,
-      "fraud_rate_test": 0.0256
+      "fraud_rate_train": 0.028125,
+      "fraud_rate_test": 0.028
     },
     "feature_importance": [
       {
         "name": "TransactionDT",
-        "value": 37.36
+        "value": 42.7
       },
       {
         "name": "TransactionAmt",
-        "value": 35.7
+        "value": 37.02
       },
       {
         "name": "ProductCD",
-        "value": 26.94
+        "value": 20.28
       }
     ],
     "supports_probability": true,
-    "auc_roc": 0.8005474823449046
+    "auc_roc": 0.7417018022486772
+  },
+  {
+    "name": "XGBoost",
+    "model_key": "xgboost",
+    "artifact": "model4_xgboost.pkl",
+    "accuracy": 0.97225,
+    "precision": 0.5454545454545454,
+    "recall": 0.05357142857142857,
+    "f1_score": 0.0975609756097561,
+    "confusion_matrix": {
+      "true_negative": 3883,
+      "false_positive": 5,
+      "false_negative": 106,
+      "true_positive": 6
+    },
+    "classification_report": {
+      "0": {
+        "precision": 0.9734269240411131,
+        "recall": 0.9987139917695473,
+        "f1-score": 0.98590834073886,
+        "support": 3888.0
+      },
+      "1": {
+        "precision": 0.5454545454545454,
+        "recall": 0.05357142857142857,
+        "f1-score": 0.0975609756097561,
+        "support": 112.0
+      },
+      "accuracy": 0.97225,
+      "macro avg": {
+        "precision": 0.7594407347478292,
+        "recall": 0.526142710170488,
+        "f1-score": 0.5417346581743081,
+        "support": 4000.0
+      },
+      "weighted avg": {
+        "precision": 0.9614436974406892,
+        "recall": 0.97225,
+        "f1-score": 0.9610346145152452,
+        "support": 4000.0
+      }
+    },
+    "split": {
+      "dataset_path": "backend/data/raw/train_transaction.csv",
+      "feature_columns": [
+        "TransactionAmt",
+        "TransactionDT",
+        "ProductCD"
+      ],
+      "target_column": "isFraud",
+      "sample_rows_loaded": 20000,
+      "train_rows": 16000,
+      "test_rows": 4000,
+      "test_size": 0.2,
+      "random_state": 42,
+      "fraud_rate_train": 0.028125,
+      "fraud_rate_test": 0.028
+    },
+    "feature_importance": [
+      {
+        "name": "ProductCD",
+        "value": 79.2
+      },
+      {
+        "name": "TransactionAmt",
+        "value": 11.04
+      },
+      {
+        "name": "TransactionDT",
+        "value": 9.75
+      }
+    ],
+    "supports_probability": true,
+    "auc_roc": 0.7564265964873604
   }
 ]

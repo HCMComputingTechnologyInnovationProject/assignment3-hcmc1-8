@@ -1,0 +1,74 @@
+{
+  "name": "XGBoost",
+  "model_key": "xgboost",
+  "artifact": "model4_xgboost.pkl",
+  "accuracy": 0.97225,
+  "precision": 0.5454545454545454,
+  "recall": 0.05357142857142857,
+  "f1_score": 0.0975609756097561,
+  "confusion_matrix": {
+    "true_negative": 3883,
+    "false_positive": 5,
+    "false_negative": 106,
+    "true_positive": 6
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9734269240411131,
+      "recall": 0.9987139917695473,
+      "f1-score": 0.98590834073886,
+      "support": 3888.0
+    },
+    "1": {
+      "precision": 0.5454545454545454,
+      "recall": 0.05357142857142857,
+      "f1-score": 0.0975609756097561,
+      "support": 112.0
+    },
+    "accuracy": 0.97225,
+    "macro avg": {
+      "precision": 0.7594407347478292,
+      "recall": 0.526142710170488,
+      "f1-score": 0.5417346581743081,
+      "support": 4000.0
+    },
+    "weighted avg": {
+      "precision": 0.9614436974406892,
+      "recall": 0.97225,
+      "f1-score": 0.9610346145152452,
+      "support": 4000.0
+    }
+  },
+  "split": {
+    "dataset_path": "backend/data/raw/train_transaction.csv",
+    "feature_columns": [
+      "TransactionAmt",
+      "TransactionDT",
+      "ProductCD"
+    ],
+    "target_column": "isFraud",
+    "sample_rows_loaded": 20000,
+    "train_rows": 16000,
+    "test_rows": 4000,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.028125,
+    "fraud_rate_test": 0.028
+  },
+  "feature_importance": [
+    {
+      "name": "ProductCD",
+      "value": 79.2
+    },
+    {
+      "name": "TransactionAmt",
+      "value": 11.04
+    },
+    {
+      "name": "TransactionDT",
+      "value": 9.75
+    }
+  ],
+  "supports_probability": true,
+  "auc_roc": 0.7564265964873604
+}
