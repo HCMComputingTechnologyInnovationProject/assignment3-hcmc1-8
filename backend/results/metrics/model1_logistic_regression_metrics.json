@@ -1,6 +1,74 @@
 {
-    "accuracy": 0.9991541254009093,
-    "precision": 0,
-    "recall": 0,
-    "f1": 0
+  "name": "Logistic Regression",
+  "model_key": "logistic_regression",
+  "artifact": "model1_logistic_regression.pkl",
+  "accuracy": 0.84095,
+  "precision": 0.07350591243208693,
+  "recall": 0.44921875,
+  "f1_score": 0.1263389178797034,
+  "confusion_matrix": {
+    "true_negative": 16589,
+    "false_positive": 2899,
+    "false_negative": 282,
+    "true_positive": 230
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9832849267974632,
+      "recall": 0.851241789819376,
+      "f1-score": 0.9125113451965126,
+      "support": 19488.0
+    },
+    "1": {
+      "precision": 0.07350591243208693,
+      "recall": 0.44921875,
+      "f1-score": 0.1263389178797034,
+      "support": 512.0
+    },
+    "accuracy": 0.84095,
+    "macro avg": {
+      "precision": 0.5283954196147751,
+      "recall": 0.650230269909688,
+      "f1-score": 0.519425131538108,
+      "support": 20000.0
+    },
+    "weighted avg": {
+      "precision": 0.9599945840297096,
+      "recall": 0.84095,
+      "f1-score": 0.8923853310572022,
+      "support": 20000.0
+    }
+  },
+  "split": {
+    "dataset_path": "backend/data/raw/train_transaction.csv",
+    "feature_columns": [
+      "TransactionAmt",
+      "TransactionDT",
+      "ProductCD"
+    ],
+    "target_column": "isFraud",
+    "sample_rows_loaded": 100000,
+    "train_rows": 80000,
+    "test_rows": 20000,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.0256125,
+    "fraud_rate_test": 0.0256
+  },
+  "feature_importance": [
+    {
+      "name": "ProductCD",
+      "value": 89.48
+    },
+    {
+      "name": "TransactionAmt",
+      "value": 7.5
+    },
+    {
+      "name": "TransactionDT",
+      "value": 3.02
+    }
+  ],
+  "supports_probability": true,
+  "auc_roc": 0.6766709200854373
 }

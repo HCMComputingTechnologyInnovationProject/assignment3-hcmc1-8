@@ -1,127 +1,169 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Brain, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Brain, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart, Pie, Cell, RadialBarChart, RadialBar, PolarAngleAxis,
-} from "recharts";
-import { addTransaction } from "@/stores/transactionStore";
-
-const TYPES = ["Wire Transfer", "Card Payment", "Crypto Exchange"] as const;
-const REGIONS = ["North America", "Europe", "Asia", "Other"] as const;
+import { fetchJson } from "@/lib/api";
 
 const formSchema = z.object({
-  amount: z.string().min(1, "Required").refine(v => !isNaN(Number(v)) && Number(v) > 0, "Must be a positive number"),
-  type: z.string().min(1, "Required"),
-  location: z.string().min(1, "Required"),
+  amount: z.string().min(1, "Required").refine((value) => !Number.isNaN(Number(value)) && Number(value) > 0, "Must be a positive number"),
+  productCode: z.string().min(1, "Required"),
+  transactionDt: z.string().min(1, "Required").refine((value) => Number.isInteger(Number(value)) && Number(value) >= 0, "Must be a non-negative integer"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
+interface PredictionOptions {
+  productCodes: string[];
+  latestTransactionDt: number;
+}
+
+interface PredictionApiResponse {
+  is_fraud: number;
+  fraud_probability: number;
+  risk_score: number;
+  model_name: string;
+  feature_importance: { name: string; value: number }[];
+  transaction: {
+    id: string;
+    timestamp: string;
+    cardBrand: string;
+    productCode: string;
+    amount: number;
+    riskScore: number;
+    status: string;
+  };
+}
+
 interface PredictionResult {
-  prediction: string;
+  prediction: "Fraud" | "Not Fraud";
   confidence: number;
   riskScore: number;
+  modelName: string;
   featureImportance: { name: string; value: number }[];
   probabilities: { name: string; value: number }[];
+  transaction: PredictionApiResponse["transaction"];
 }
 
 export default function Prediction() {
+  const [options, setOptions] = useState<PredictionOptions>({ productCodes: [], latestTransactionDt: 0 });
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { amount: "", type: "", location: "" },
+    defaultValues: { amount: "", productCode: "", transactionDt: "" },
   });
+
+  useEffect(() => {
+    let active = true;
+
+    const loadOptions = async () => {
+      try {
+        const response = await fetchJson<PredictionOptions>("/api/metadata/prediction-options");
+        if (!active) {
+          return;
+        }
+        setOptions(response);
+        form.setValue("transactionDt", String(response.latestTransactionDt));
+        if (response.productCodes.length > 0) {
+          form.setValue("productCode", response.productCodes[0]);
+        }
+      } catch {
+        if (active) {
+          setError("Could not load prediction metadata from the backend.");
+        }
+      } finally {
+        if (active) {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    loadOptions();
+    return () => {
+      active = false;
+    };
+  }, [form]);
 
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
     setError(null);
-    const time = Date.now();
-    const amount = Number(data.amount);
-
-    let predResult: PredictionResult;
 
     try {
-      const res = await fetch("http://localhost:8000/api/predict", {
+      const response = await fetchJson<PredictionApiResponse>("/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, type: data.type, location: data.location, time }),
+        body: JSON.stringify({
+          amount: Number(data.amount),
+          transaction_dt: Number(data.transactionDt),
+          product_code: data.productCode,
+        }),
       });
-      if (!res.ok) throw new Error("API Connection Failed");
-      const json = await res.json();
 
-      const isFraudResult = json.is_fraud === 1;
-      const confidence = json.fraud_probability * 100;
-      const riskScore = isFraudResult ? 85 : 12; // Derived from prob
-
-      predResult = {
-        prediction: isFraudResult ? "Fraud" : "Not Fraud",
-        confidence: confidence < 50 ? 100 - confidence : confidence, 
-        riskScore,
-        featureImportance: [
-          { name: "Amount", value: 0.35 + (amount / 20000) },
-          { name: "Type", value: 0.25 },
-          { name: "Velocity", value: 0.2 },
-          { name: "Location", value: 0.12 },
-          { name: "Device", value: 0.08 },
-        ],
+      const confidence = response.is_fraud === 1 ? response.fraud_probability * 100 : (1 - response.fraud_probability) * 100;
+      setResult({
+        prediction: response.is_fraud === 1 ? "Fraud" : "Not Fraud",
+        confidence,
+        riskScore: response.risk_score,
+        modelName: response.model_name,
+        featureImportance: response.feature_importance,
         probabilities: [
-          { name: "Fraud", value: confidence },
-          { name: "Normal", value: 100 - confidence },
+          { name: "Fraud", value: response.fraud_probability * 100 },
+          { name: "Normal", value: (1 - response.fraud_probability) * 100 },
         ],
-      };
-      setResult(predResult);
-    } catch (err: any) {
-      setError("Critical: Could not reach the AI Inference Engine. Connection Refused.");
+        transaction: response.transaction,
+      });
+    } catch {
+      setError("Could not reach the inference API. Make sure the backend server is running and a trained model exists.");
       setResult(null);
     } finally {
       setLoading(false);
     }
-
-    // Store locally for audit log (if successful)
-    if (predResult!) {
-      const isFraud = predResult.prediction === "Fraud";
-      addTransaction({
-        amount,
-        type: data.type,
-        region: data.location,
-        merchant: "Session Submission",
-        riskScore: predResult.riskScore,
-        status: isFraud ? (predResult.riskScore >= 90 ? "blocked" : "flagged") : "approved",
-      });
-    }
   };
 
   const isFraud = result?.prediction === "Fraud";
-  const PIE_COLORS = ["hsl(var(--risk-critical))", "hsl(var(--risk-safe))"];
+  const pieColors = ["hsl(var(--risk-critical))", "hsl(var(--risk-safe))"];
   const gaugeData = result ? [{ name: "Risk", value: result.riskScore, fill: isFraud ? "hsl(var(--risk-critical))" : "hsl(var(--risk-safe))" }] : [];
 
   return (
     <DashboardLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">AI Prediction</h1>
-        <p className="text-muted-foreground">Analyze a transaction for fraud risk using the AI model.</p>
+        <p className="text-muted-foreground">Submit real model features that match the backend training pipeline: amount, ProductCD, and TransactionDT.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* LEFT — Input Form */}
         <Card className="lg:col-span-2 bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
-              <Brain className="h-5 w-5 text-primary" /> Transaction Input
+              <Brain className="h-5 w-5 text-primary" />
+              Transaction Input
             </CardTitle>
-            <CardDescription>Enter transaction details for analysis.</CardDescription>
+            <CardDescription>Inputs are sent directly to the deployed backend model artifact.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -131,29 +173,32 @@ export default function Prediction() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Transaction Amount ($)</FormLabel>
+                      <FormLabel>Transaction Amount</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. 2500" type="number" step="any" className="bg-secondary border-border" {...field} />
+                        <Input placeholder="e.g. 2500" type="number" step="0.01" className="bg-secondary border-border" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
-                  name="type"
+                  name="productCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Transaction Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <FormLabel>Product Code (ProductCD)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingOptions || options.productCodes.length === 0}>
                         <FormControl>
                           <SelectTrigger className="bg-secondary border-border">
-                            <SelectValue placeholder="Select type" />
+                            <SelectValue placeholder="Select ProductCD" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          {options.productCodes.map((code) => (
+                            <SelectItem key={code} value={code}>
+                              {code}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -161,55 +206,47 @@ export default function Prediction() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
-                  name="location"
+                  name="transactionDt"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Location / Region</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-secondary border-border">
-                            <SelectValue placeholder="Select region" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {REGIONS.map((r) => (
-                            <SelectItem key={r} value={r}>{r}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>TransactionDT</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Seconds since dataset start" type="number" step="1" className="bg-secondary border-border" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={loading}>
+
+                <Button type="submit" className="w-full" disabled={loading || loadingOptions}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Brain className="h-4 w-4 mr-2" />}
                   Analyze Transaction
                 </Button>
               </form>
             </Form>
+
+            {loadingOptions && <p className="mt-4 text-xs text-muted-foreground">Loading ProductCD options from the backend...</p>}
             {error && <p className="mt-4 text-xs text-risk-warning">{error}</p>}
           </CardContent>
         </Card>
 
-        {/* RIGHT — Results */}
         <div className="lg:col-span-3 space-y-6">
           {!result ? (
             <Card className="bg-card border-border flex items-center justify-center min-h-[300px]">
-              <p className="text-muted-foreground text-sm">Submit a transaction to see prediction results.</p>
+              <p className="text-muted-foreground text-sm">Submit a transaction to see real API inference results.</p>
             </Card>
           ) : (
             <>
-              {/* Prediction Result */}
               <Card className={`bg-card border-border border-l-4 ${isFraud ? "border-l-risk-critical" : "border-l-risk-safe"}`}>
                 <CardContent className="flex items-center gap-4 py-6">
-                  {isFraud
-                    ? <ShieldAlert className="h-10 w-10 text-risk-critical" />
-                    : <ShieldCheck className="h-10 w-10 text-risk-safe" />}
+                  {isFraud ? <ShieldAlert className="h-10 w-10 text-risk-critical" /> : <ShieldCheck className="h-10 w-10 text-risk-safe" />}
                   <div>
                     <p className="text-sm text-muted-foreground">Prediction</p>
                     <p className={`text-2xl font-bold ${isFraud ? "text-risk-critical" : "text-risk-safe"}`}>{result.prediction}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Model: {result.modelName}</p>
                   </div>
                   <div className="ml-auto text-right">
                     <p className="text-sm text-muted-foreground">Confidence</p>
@@ -218,25 +255,16 @@ export default function Prediction() {
                 </CardContent>
               </Card>
 
-              {/* Charts Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Risk Gauge */}
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-foreground">Risk Score</CardTitle>
                   </CardHeader>
                   <CardContent className="flex justify-center">
                     <ResponsiveContainer width={160} height={160}>
-                      <RadialBarChart
-                        cx="50%" cy="50%" innerRadius="70%" outerRadius="100%"
-                        startAngle={180} endAngle={0}
-                        barSize={14} data={gaugeData}
-                      >
+                      <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" startAngle={180} endAngle={0} barSize={14} data={gaugeData}>
                         <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-                        <RadialBar
-                          dataKey="value" cornerRadius={8}
-                          background={{ fill: "hsl(var(--secondary))" }}
-                        />
+                        <RadialBar dataKey="value" cornerRadius={8} background={{ fill: "hsl(var(--secondary))" }} />
                         <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground text-2xl font-bold">
                           {result.riskScore}
                         </text>
@@ -245,17 +273,16 @@ export default function Prediction() {
                   </CardContent>
                 </Card>
 
-                {/* Feature Importance */}
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-foreground">Feature Importance</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={140}>
+                    <ResponsiveContainer width="100%" height={160}>
                       <BarChart data={result.featureImportance} layout="vertical" margin={{ left: 0, right: 8 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
-                        <YAxis type="category" dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} width={55} />
+                        <YAxis type="category" dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} width={80} />
                         <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} />
                         <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                       </BarChart>
@@ -263,7 +290,6 @@ export default function Prediction() {
                   </CardContent>
                 </Card>
 
-                {/* Probability Pie */}
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-foreground">Probability</CardTitle>
@@ -272,25 +298,50 @@ export default function Prediction() {
                     <ResponsiveContainer width={160} height={160}>
                       <PieChart>
                         <Pie data={result.probabilities} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={4}>
-                          {result.probabilities.map((_, i) => (
-                            <Cell key={i} fill={PIE_COLORS[i]} />
+                          {result.probabilities.map((entry, index) => (
+                            <Cell key={entry.name} fill={pieColors[index]} />
                           ))}
                         </Pie>
                         <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex flex-col justify-center gap-2 ml-2">
-                      {result.probabilities.map((p, i) => (
-                        <div key={p.name} className="flex items-center gap-2 text-xs">
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: PIE_COLORS[i] }} />
-                          <span className="text-muted-foreground">{p.name}</span>
-                          <span className="font-medium text-foreground">{p.value.toFixed(1)}%</span>
+                      {result.probabilities.map((probability, index) => (
+                        <div key={probability.name} className="flex items-center gap-2 text-xs">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: pieColors[index] }} />
+                          <span className="text-muted-foreground">{probability.name}</span>
+                          <span className="font-medium text-foreground">{probability.value.toFixed(1)}%</span>
                         </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-sm text-foreground">Recorded Prediction</CardTitle>
+                  <CardDescription>This prediction is pushed back to the backend and appears in real-time dashboard totals.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Transaction ID</p>
+                    <p className="font-medium text-foreground">{result.transaction.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Timestamp</p>
+                    <p className="font-medium text-foreground">{new Date(result.transaction.timestamp).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">ProductCD</p>
+                    <p className="font-medium text-foreground">{result.transaction.productCode}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Status</p>
+                    <p className="font-medium text-foreground">{result.transaction.status}</p>
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>

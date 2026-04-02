@@ -1,138 +1,194 @@
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { fetchJson } from "@/lib/api";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
-function statusBadge(s: string) {
-  const m: Record<string, string> = {
+interface TransactionRecord {
+  id: string;
+  timestamp: string;
+  cardBrand: string;
+  productCode: string;
+  amount: number;
+  riskScore: number;
+  status: "approved" | "flagged" | "blocked";
+  isFraud: number;
+  source: string;
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
     approved: "bg-risk-low/10 text-risk-low border-risk-low/20",
     flagged: "bg-risk-high/10 text-risk-high border-risk-high/20",
     blocked: "bg-risk-critical/10 text-risk-critical border-risk-critical/20",
   };
-  return m[s] || "";
+  return map[status] || "";
 }
 
 export default function Transactions() {
-  const [remoteTransactions, setRemoteTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [regionFilter, setRegionFilter] = useState("all");
+  const [productFilter, setProductFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [riskRange, setRiskRange] = useState([0]);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/transactions")
-      .then(res => res.json())
-      .then(data => {
-        // Map IEEE dataset columns to UI schema
-        const mapped = data.map((t: any) => ({
-          id: t.TransactionID.toString(),
-          timestamp: Date.now() - (Math.random() * 10000000), // Randomize for realism in mock UI
-          merchant: t.card4 || "Unknown Card",
-          type: t.ProductCD || "W",
-          region: "Global",
-          amount: t.TransactionAmt,
-          riskScore: t.isFraud === 1 ? 95 : 5,
-          status: t.isFraud === 1 ? "blocked" : "approved"
-        }));
-        setRemoteTransactions(mapped);
-      })
-      .catch(err => console.log("Transactions offline"));
+    let active = true;
+
+    const loadTransactions = async () => {
+      try {
+        const data = await fetchJson<TransactionRecord[]>("/api/transactions?limit=120");
+        if (active) {
+          setTransactions(data);
+          setError(null);
+        }
+      } catch {
+        if (active) {
+          setTransactions([]);
+          setError("Could not load transactions from the backend API.");
+        }
+      }
+    };
+
+    loadTransactions();
+    const interval = window.setInterval(loadTransactions, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   const filtered = useMemo(() => {
-    return remoteTransactions.filter((t) => {
-      if (search && !t.merchant.toLowerCase().includes(search.toLowerCase()) && !t.id.toLowerCase().includes(search.toLowerCase())) return false;
-      if (typeFilter !== "all" && t.type !== typeFilter) return false;
-      if (regionFilter !== "all" && t.region !== regionFilter) return false;
-      if (t.riskScore < riskRange[0]) return false;
+    return transactions.filter((transaction) => {
+      const target = `${transaction.id} ${transaction.cardBrand} ${transaction.productCode}`.toLowerCase();
+      if (search && !target.includes(search.toLowerCase())) {
+        return false;
+      }
+      if (productFilter !== "all" && transaction.productCode !== productFilter) {
+        return false;
+      }
+      if (statusFilter !== "all" && transaction.status !== statusFilter) {
+        return false;
+      }
+      if (transaction.riskScore < riskRange[0]) {
+        return false;
+      }
       return true;
     });
-  }, [remoteTransactions, search, typeFilter, regionFilter, riskRange]);
+  }, [transactions, search, productFilter, statusFilter, riskRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const types = [...new Set(remoteTransactions.map((t) => t.type))];
-  const regions = [...new Set(remoteTransactions.map((t) => t.region))];
+  const productCodes = [...new Set(transactions.map((transaction) => transaction.productCode))].sort();
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
-          <p className="text-muted-foreground text-sm">{filtered.length} transactions found</p>
+          <p className="text-muted-foreground text-sm">{filtered.length} transactions loaded from the backend dataset and live prediction feed.</p>
         </div>
 
-        {/* Filters */}
         <div className="glass-card p-4 flex flex-wrap items-end gap-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search merchant or ID..." className="pl-9 bg-secondary border-border" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+            <Input
+              placeholder="Search ID, card brand or ProductCD..."
+              className="pl-9 bg-secondary border-border"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
           </div>
-          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-44 bg-secondary border-border"><SelectValue placeholder="Type" /></SelectTrigger>
+
+          <Select value={productFilter} onValueChange={(value) => { setProductFilter(value); setPage(1); }}>
+            <SelectTrigger className="w-44 bg-secondary border-border">
+              <SelectValue placeholder="ProductCD" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              <SelectItem value="all">All ProductCD</SelectItem>
+              {productCodes.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {code}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={regionFilter} onValueChange={(v) => { setRegionFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-44 bg-secondary border-border"><SelectValue placeholder="Region" /></SelectTrigger>
+
+          <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
+            <SelectTrigger className="w-44 bg-secondary border-border">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Regions</SelectItem>
-              {regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="flagged">Flagged</SelectItem>
+              <SelectItem value="blocked">Blocked</SelectItem>
             </SelectContent>
           </Select>
+
           <div className="w-48">
             <p className="text-xs text-muted-foreground mb-1">Min Risk Score: {riskRange[0]}</p>
-            <Slider value={riskRange} onValueChange={(v) => { setRiskRange(v); setPage(1); }} max={100} step={1} />
+            <Slider value={riskRange} onValueChange={(value) => { setRiskRange(value); setPage(1); }} max={100} step={1} />
           </div>
         </div>
 
-        {/* Table */}
         <div className="glass-card overflow-x-auto">
+          {error && <div className="px-4 pt-4 text-sm text-risk-warning">{error}</div>}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                {["ID", "Timestamp", "Merchant", "Type", "Region", "Amount", "Risk", "Status"].map((h) => (
-                  <th key={h} className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider">{h}</th>
+                {["ID", "Timestamp", "Card Brand", "ProductCD", "Amount", "Risk", "Status", "Source"].map((header) => (
+                  <th key={header} className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider">
+                    {header}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {paginated.map((t) => (
-                <tr key={t.id} className="border-b border-border/50 hover:bg-accent/50 transition-colors">
-                  <td className="py-3 px-4 font-mono text-xs text-primary">{t.id}</td>
-                  <td className="py-3 px-4 text-xs text-muted-foreground">{new Date(t.timestamp).toLocaleString()}</td>
-                  <td className="py-3 px-4 text-foreground font-medium">{t.merchant}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{t.type}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{t.region}</td>
-                  <td className="py-3 px-4 font-mono text-foreground">${t.amount.toLocaleString()}</td>
+              {paginated.map((transaction) => (
+                <tr key={transaction.id} className="border-b border-border/50 hover:bg-accent/50 transition-colors">
+                  <td className="py-3 px-4 font-mono text-xs text-primary">{transaction.id}</td>
+                  <td className="py-3 px-4 text-xs text-muted-foreground">{new Date(transaction.timestamp).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-foreground font-medium">{transaction.cardBrand}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{transaction.productCode}</td>
+                  <td className="py-3 px-4 font-mono text-foreground">${transaction.amount.toLocaleString()}</td>
                   <td className="py-3 px-4">
-                    <span className={`font-mono font-semibold ${t.riskScore >= 80 ? "text-risk-critical" : t.riskScore >= 50 ? "text-risk-high" : t.riskScore >= 20 ? "text-risk-medium" : "text-risk-low"}`}>{t.riskScore}</span>
+                    <span className={`font-mono font-semibold ${transaction.riskScore >= 80 ? "text-risk-critical" : transaction.riskScore >= 50 ? "text-risk-high" : "text-risk-low"}`}>
+                      {transaction.riskScore}
+                    </span>
                   </td>
                   <td className="py-3 px-4">
-                    <Badge variant="outline" className={statusBadge(t.status)}>{t.status}</Badge>
+                    <Badge variant="outline" className={statusBadge(transaction.status)}>
+                      {transaction.status}
+                    </Badge>
                   </td>
+                  <td className="py-3 px-4 text-xs text-muted-foreground">{transaction.source}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">Page {page} of {totalPages}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>

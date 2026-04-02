@@ -1,92 +1,116 @@
-import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
+import { Brain } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Brain, CheckCircle2, ShieldAlert, Timer } from "lucide-react";
+import { fetchJson } from "@/lib/api";
+
+interface ModelMetric {
+  name: string;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  split: {
+    train_rows: number;
+    test_rows: number;
+    test_size: number;
+    random_state: number;
+  };
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-card/95 border border-border p-3 rounded-xl shadow-2xl backdrop-blur-md z-50">
-        <p className="font-semibold text-foreground mb-3 text-sm pb-2 border-b border-border">{label}</p>
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center justify-between gap-6 text-sm mb-1.5">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: entry.color }} />
-              <span className="text-muted-foreground font-medium">{entry.name}</span>
-            </div>
-            <span className="font-bold text-foreground tracking-wide">{entry.value}%</span>
-          </div>
-        ))}
-      </div>
-    );
+  if (!active || !payload?.length) {
+    return null;
   }
-  return null;
+
+  return (
+    <div className="bg-card/95 border border-border p-3 rounded-xl shadow-2xl backdrop-blur-md z-50">
+      <p className="font-semibold text-foreground mb-3 text-sm pb-2 border-b border-border">{label}</p>
+      {payload.map((entry: any, index: number) => (
+        <div key={index} className="flex items-center justify-between gap-6 text-sm mb-1.5">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-[3px]" style={{ backgroundColor: entry.color }} />
+            <span className="text-muted-foreground font-medium">{entry.name}</span>
+          </div>
+          <span className="font-bold text-foreground tracking-wide">{entry.value}%</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 export default function ModelEvaluation() {
-  const [metrics, setMetrics] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<ModelMetric[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/model/comparison")
-      .then(res => res.json())
-      .then(data => {
-        // Normalize 0-1 metrics to percentages for display
-        const normalized = data.map((m: any) => ({
-          ...m,
-          accuracy: (m.accuracy * 100).toFixed(1),
-          precision: (m.precision * 100).toFixed(1),
-          recall: (m.recall * 100).toFixed(1),
-          f1Score: (m.f1_score * 100).toFixed(1),
-          inferenceTime: m.name === "Random Forest" ? "12ms" : (m.name === "Logistic Regression" ? "3ms" : "8ms"),
-          status: m.name === "Random Forest" ? "Active" : (m.name === "Isolation Forest" ? "Standby" : "Archived")
-        }));
-        setMetrics(normalized);
-      })
-      .catch(err => console.error("Could not fetch comparison metrics:", err));
+    let active = true;
+
+    const loadMetrics = async () => {
+      try {
+        const data = await fetchJson<ModelMetric[]>("/api/model/comparison");
+        if (active) {
+          setMetrics(data);
+        }
+      } catch {
+        if (active) {
+          setMetrics([]);
+        }
+      }
+    };
+
+    loadMetrics();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const chartData = metrics.map(m => ({
-    name: m.name,
-    Accuracy: parseFloat(m.accuracy),
-    Precision: parseFloat(m.precision),
-    Recall: parseFloat(m.recall),
-    F1: parseFloat(m.f1Score)
-  }));
+  const bestModel = useMemo(() => {
+    if (metrics.length === 0) {
+      return "No trained model yet";
+    }
+    return [...metrics].sort((left, right) => right.f1_score - left.f1_score)[0].name;
+  }, [metrics]);
 
-  const bestModel = metrics.length > 0 ? [...metrics].sort((a, b) => b.f1Score - a.f1Score)[0].name : "Checking...";
+  const splitInfo = metrics[0]?.split;
+  const chartData = metrics.map((metric) => ({
+    name: metric.name,
+    Precision: Number((metric.precision * 100).toFixed(1)),
+    Recall: Number((metric.recall * 100).toFixed(1)),
+    F1: Number((metric.f1_score * 100).toFixed(1)),
+  }));
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground tracking-tight">Model Evaluation</h1>
-              <p className="text-muted-foreground text-sm mt-1">Comparing performance metrics across deployed detection models.</p>
-            </div>
-            <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-medium">
-              <Brain className="w-5 h-5" />
-              <span>Best Overall Model: {bestModel}</span>
-            </div>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Model Evaluation</h1>
+            <p className="text-muted-foreground text-sm mt-1">These metrics come from one shared stratified test split, so the 3 models are compared on the same data.</p>
+          </div>
+          <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-medium">
+            <Brain className="w-5 h-5" />
+            <span>Best F1 model: {bestModel}</span>
           </div>
         </div>
 
-        {/* Model Metrics Table */}
+        {splitInfo && (
+          <div className="glass-card p-4 text-sm text-muted-foreground">
+            Shared split: train {splitInfo.train_rows.toLocaleString()} rows, test {splitInfo.test_rows.toLocaleString()} rows, test size {splitInfo.test_size}, random state {splitInfo.random_state}.
+          </div>
+        )}
+
         <div className="glass-card shadow-sm hover:shadow-md transition-shadow overflow-hidden">
           <div className="p-6 border-b border-border">
-            <h2 className="text-base font-bold text-foreground tracking-tight">Performance Overview (Real Data)</h2>
+            <h2 className="text-base font-bold text-foreground tracking-tight">Precision, Recall, F1</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground uppercase bg-secondary/50">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Model Name</th>
-                  <th className="px-6 py-4 font-semibold">Accuracy</th>
+                  <th className="px-6 py-4 font-semibold">Model</th>
                   <th className="px-6 py-4 font-semibold">Precision</th>
                   <th className="px-6 py-4 font-semibold">Recall</th>
                   <th className="px-6 py-4 font-semibold">F1 Score</th>
-                  <th className="px-6 py-4 font-semibold">Inference Time</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -96,27 +120,9 @@ export default function ModelEvaluation() {
                       <Brain className="w-4 h-4 text-primary" />
                       {model.name}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={parseFloat(model.accuracy) > 95 ? "text-emerald-500 font-medium" : ""}>{model.accuracy}%</span>
-                    </td>
-                    <td className="px-6 py-4">{model.precision}%</td>
-                    <td className="px-6 py-4">{model.recall}%</td>
-                    <td className="px-6 py-4 font-semibold">{model.f1Score}%</td>
-                    <td className="px-6 py-4 flex items-center gap-1.5 text-muted-foreground">
-                      <Timer className="w-3.5 h-3.5" />
-                      {model.inferenceTime}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-xs font-semibold rounded-full flex items-center w-fit gap-1.5 ${
-                        model.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500' :
-                        model.status === 'Standby' ? 'bg-amber-500/10 text-amber-500' :
-                        'bg-slate-500/10 text-slate-500'
-                      }`}>
-                        {model.status === 'Active' && <CheckCircle2 className="w-3 h-3" />}
-                        {model.status === 'Standby' && <ShieldAlert className="w-3 h-3" />}
-                        {model.status}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4">{(model.precision * 100).toFixed(2)}%</td>
+                    <td className="px-6 py-4">{(model.recall * 100).toFixed(2)}%</td>
+                    <td className="px-6 py-4 font-semibold">{(model.f1_score * 100).toFixed(2)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -124,7 +130,6 @@ export default function ModelEvaluation() {
           </div>
         </div>
 
-        {/* Comparison Chart */}
         <div className="glass-card p-6 flex flex-col h-[500px] shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-base font-bold text-foreground tracking-tight">Metrics Comparison</h2>
@@ -133,14 +138,13 @@ export default function ModelEvaluation() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} axisLine={false} tickLine={false} dy={10} fontWeight="500" />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(val) => `${val}%`} dx={-10} />
-                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: 'hsl(var(--secondary))', opacity: 0.4}} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '13px', fontWeight: '500', paddingTop: '30px' }} />
-                <Bar dataKey="Accuracy" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={32} />
-                <Bar dataKey="Precision" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={32} />
-                <Bar dataKey="Recall" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={32} />
-                <Bar dataKey="F1" fill="#10b981" radius={[4, 4, 0, 0]} barSize={32} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} axisLine={false} tickLine={false} dy={10} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(value) => `${value}%`} dx={-10} />
+                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.4 }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: "13px", fontWeight: "500", paddingTop: "30px" }} />
+                <Bar dataKey="Precision" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={28} />
+                <Bar dataKey="Recall" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={28} />
+                <Bar dataKey="F1" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

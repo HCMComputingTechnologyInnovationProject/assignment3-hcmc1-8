@@ -1,0 +1,61 @@
+{
+  "name": "Isolation Forest",
+  "model_key": "isolation_forest",
+  "artifact": "model2_isolation_forest.pkl",
+  "accuracy": 0.94665,
+  "precision": 0.022375215146299483,
+  "recall": 0.025390625,
+  "f1_score": 0.023787740164684355,
+  "confusion_matrix": {
+    "true_negative": 18920,
+    "false_positive": 568,
+    "false_negative": 499,
+    "true_positive": 13
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9743035171739018,
+      "recall": 0.9708538587848933,
+      "f1-score": 0.9725756290641787,
+      "support": 19488.0
+    },
+    "1": {
+      "precision": 0.022375215146299483,
+      "recall": 0.025390625,
+      "f1-score": 0.023787740164684355,
+      "support": 512.0
+    },
+    "accuracy": 0.94665,
+    "macro avg": {
+      "precision": 0.49833936616010066,
+      "recall": 0.49812224189244664,
+      "f1-score": 0.4981816846144315,
+      "support": 20000.0
+    },
+    "weighted avg": {
+      "precision": 0.9499341526419952,
+      "recall": 0.94665,
+      "f1-score": 0.9482866591083517,
+      "support": 20000.0
+    }
+  },
+  "split": {
+    "dataset_path": "backend/data/raw/train_transaction.csv",
+    "feature_columns": [
+      "TransactionAmt",
+      "TransactionDT",
+      "ProductCD"
+    ],
+    "target_column": "isFraud",
+    "sample_rows_loaded": 100000,
+    "train_rows": 80000,
+    "test_rows": 20000,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.0256125,
+    "fraud_rate_test": 0.0256
+  },
+  "feature_importance": [],
+  "supports_probability": false,
+  "auc_roc": 0.6150107798709462
+}

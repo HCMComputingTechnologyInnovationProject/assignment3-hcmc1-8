@@ -1,16 +1,40 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import joblib
-import pandas as pd
-import numpy as np
-import os
+from __future__ import annotations
+
 import json
-from fastapi.staticfiles import StaticFiles
+import os
+import socket
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
 
-app = FastAPI(title="SentinelAI API", description="Real-time Fraud Detection")
+import joblib
+import numpy as np
+import pandas as pd
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-# Enable CORS for local development
+
+APP_ROOT = Path(__file__).resolve().parent
+RESULTS_ROOT = APP_ROOT / "results"
+MODELS_ROOT = RESULTS_ROOT / "models"
+METRICS_ROOT = RESULTS_ROOT / "metrics"
+DATASET_PATH = APP_ROOT / "data" / "raw" / "train_transaction.csv"
+DATASET_EPOCH = datetime(2017, 12, 1, tzinfo=timezone.utc)
+DATASET_SAMPLE_ROWS = 150_000
+PRODUCT_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6"]
+
+DATASET_COLUMNS = [
+    "TransactionID",
+    "TransactionDT",
+    "TransactionAmt",
+    "ProductCD",
+    "card4",
+    "isFraud",
+]
+
+app = FastAPI(title="SentinelAI API", description="Real fraud analytics and model inference API")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,121 +43,546 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Paths
-MODEL_PATH = "results/models/random_forest_ieee.pkl" # Using the best model we trained
-STATS_PATH = "results/dashboard_stats.json"
-DATASET_PATH = "data/processed/processed_ieee_dataset.csv"
+model_artifact: dict[str, Any] | None = None
+historical_transactions: pd.DataFrame | None = None
+live_predictions: list[dict[str, Any]] = []
 
-model = None
-dashboard_data = None
-session_fraud_count = 0
 
-@app.get("/api/alerts")
-def get_alerts():
-    try:
-        # Load real fraud cases from dataset to show as alerts
-        df = pd.read_csv(DATASET_PATH, nrows=500)
-        frauds = df[df['isFraud'] == 1].head(10)
-        
-        alerts = []
-        for i, row in frauds.iterrows():
-            alerts.append({
-                "id": f"ALRT-{int(row['TransactionID'])}",
-                "type": "High Risk Transaction",
-                "severity": "critical",
-                "status": "open",
-                "description": f"Suspicious activity detected on card ending in {int(str(row['card1'])[-4:])}",
-                "merchant": f"Product Category: {row['ProductCD']}",
-                "amount": float(row['TransactionAmt']),
-                "riskScore": 95,
-                "timestamp": "2024-03-31T10:00:00Z"
-            })
-        return alerts
-    except Exception as e:
-        print(f"Alert error: {e}")
+class PredictionInput(BaseModel):
+    amount: float = Field(..., gt=0)
+    transaction_dt: int = Field(..., ge=0, description="Seconds since the dataset reference start time.")
+    product_code: str = Field(..., min_length=1, max_length=8)
+
+
+def load_historical_transactions() -> pd.DataFrame:
+    frame = pd.read_csv(DATASET_PATH, usecols=DATASET_COLUMNS, nrows=DATASET_SAMPLE_ROWS)
+    frame["TransactionID"] = frame["TransactionID"].astype(str)
+    frame["TransactionDT"] = pd.to_numeric(frame["TransactionDT"], errors="coerce").fillna(0).astype(int)
+    frame["TransactionAmt"] = pd.to_numeric(frame["TransactionAmt"], errors="coerce").fillna(0.0)
+    frame["ProductCD"] = frame["ProductCD"].fillna("Unknown").astype(str)
+    frame["card4"] = frame["card4"].fillna("Unknown").astype(str)
+    frame["isFraud"] = pd.to_numeric(frame["isFraud"], errors="coerce").fillna(0).astype(int)
+    return frame
+
+
+def resolve_deployment_artifact() -> Path | None:
+    deployment_target_path = METRICS_ROOT / "deployment_target.json"
+    if deployment_target_path.exists():
+        deployment_target = json.loads(deployment_target_path.read_text(encoding="utf-8"))
+        candidate = MODELS_ROOT / deployment_target["artifact"]
+        if candidate.exists():
+            return candidate
+
+    for candidate_name in (
+        "model3_random_forest.pkl",
+        "model1_logistic_regression.pkl",
+        "model2_isolation_forest.pkl",
+    ):
+        candidate = MODELS_ROOT / candidate_name
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def transaction_timestamp(transaction_dt: int) -> str:
+    timestamp = DATASET_EPOCH + timedelta(seconds=int(transaction_dt))
+    return timestamp.isoformat().replace("+00:00", "Z")
+
+
+def get_live_predictions_frame() -> pd.DataFrame:
+    if not live_predictions:
+        return pd.DataFrame(columns=DATASET_COLUMNS)
+
+    rows = [
+        {
+            "TransactionID": item["transaction_id"],
+            "TransactionDT": item["transaction_dt"],
+            "TransactionAmt": item["amount"],
+            "ProductCD": item["product_code"],
+            "card4": item["card_brand"],
+            "isFraud": item["is_fraud"],
+        }
+        for item in live_predictions
+    ]
+    return pd.DataFrame(rows, columns=DATASET_COLUMNS)
+
+
+def combined_transactions_frame() -> pd.DataFrame:
+    if historical_transactions is None:
+        return pd.DataFrame(columns=DATASET_COLUMNS)
+
+    live_frame = get_live_predictions_frame()
+    if live_frame.empty:
+        return historical_transactions.copy()
+    return pd.concat([historical_transactions, live_frame], ignore_index=True)
+
+
+def overall_fraud_rate(frame: pd.DataFrame) -> float:
+    if frame.empty:
+        return 0.0
+    return float(frame["isFraud"].mean())
+
+
+def product_fraud_rates(frame: pd.DataFrame) -> dict[str, float]:
+    if frame.empty:
+        return {}
+    return frame.groupby("ProductCD")["isFraud"].mean().to_dict()
+
+
+def compute_risk_score(
+    amount: float,
+    product_code: str,
+    probability: float,
+    is_fraud: int,
+    frame: pd.DataFrame,
+) -> int:
+    if frame.empty:
+        base_score = probability * 100
+        return int(max(1, min(99, round(base_score))))
+
+    amount_p95 = float(frame["TransactionAmt"].quantile(0.95))
+    baseline_fraud_rate = overall_fraud_rate(frame)
+    product_rate = product_fraud_rates(frame).get(product_code, baseline_fraud_rate)
+
+    score = probability * 100
+    if amount >= amount_p95:
+        score += 8
+    if product_rate > baseline_fraud_rate * 1.5:
+        score += 7
+
+    if is_fraud:
+        score = max(score, 70)
+    else:
+        score = min(score, 49)
+
+    return int(max(1, min(99, round(score))))
+
+
+def feature_importance_from_artifact() -> list[dict[str, float]]:
+    if model_artifact is None:
+        return []
+    raw_importance = model_artifact.get("feature_importance", [])
+    return [
+        {"name": str(item["name"]), "value": float(item["value"])}
+        for item in raw_importance
+    ]
+
+
+def infer_prediction(features: pd.DataFrame) -> tuple[int, float]:
+    if model_artifact is None:
+        raise HTTPException(status_code=503, detail="Model not loaded. Run training first.")
+
+    model = model_artifact["model"]
+    if "preprocessor" in model_artifact:
+        transformed = model_artifact["preprocessor"].transform(features)
+        raw_prediction = int(model.predict(transformed)[0])
+        prediction = 1 if raw_prediction == -1 else 0
+        score = float((-model.score_samples(transformed))[0])
+        probability = float(max(0.0, min(1.0, score / (score + 1))))
+    else:
+        prediction = int(model.predict(features)[0])
+
+    if "preprocessor" in model_artifact:
+        return prediction, probability
+    if hasattr(model, "predict_proba"):
+        probability = float(model.predict_proba(features)[0][1])
+    elif hasattr(model, "decision_function"):
+        score = float(model.decision_function(features)[0])
+        probability = float(1 / (1 + np.exp(-score)))
+    else:
+        probability = float(prediction)
+
+    return prediction, probability
+
+
+def append_live_prediction(payload: PredictionInput, prediction: int, probability: float, risk_score: int) -> dict[str, Any]:
+    transaction_id = f"LIVE-{len(live_predictions) + 1:04d}"
+    item = {
+        "transaction_id": transaction_id,
+        "transaction_dt": int(payload.transaction_dt),
+        "amount": float(payload.amount),
+        "product_code": payload.product_code,
+        "card_brand": "User Submission",
+        "is_fraud": int(prediction),
+        "fraud_probability": float(probability),
+        "risk_score": int(risk_score),
+        "status": "blocked" if prediction == 1 else "approved",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "source": "live_prediction",
+    }
+    live_predictions.insert(0, item)
+    del live_predictions[100:]
+    return item
+
+
+def transaction_record(row: pd.Series) -> dict[str, Any]:
+    probability = 0.97 if int(row["isFraud"]) == 1 else 0.08
+    frame = combined_transactions_frame()
+    risk_score = compute_risk_score(
+        amount=float(row["TransactionAmt"]),
+        product_code=str(row["ProductCD"]),
+        probability=probability,
+        is_fraud=int(row["isFraud"]),
+        frame=frame,
+    )
+    return {
+        "id": str(row["TransactionID"]),
+        "timestamp": transaction_timestamp(int(row["TransactionDT"])),
+        "cardBrand": str(row["card4"]),
+        "productCode": str(row["ProductCD"]),
+        "amount": float(row["TransactionAmt"]),
+        "riskScore": risk_score,
+        "status": "blocked" if int(row["isFraud"]) == 1 else "approved",
+        "isFraud": int(row["isFraud"]),
+        "source": "historical_dataset",
+    }
+
+
+def live_transaction_record(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": item["transaction_id"],
+        "timestamp": item["timestamp"],
+        "cardBrand": item["card_brand"],
+        "productCode": item["product_code"],
+        "amount": float(item["amount"]),
+        "riskScore": int(item["risk_score"]),
+        "status": item["status"],
+        "isFraud": int(item["is_fraud"]),
+        "source": item["source"],
+    }
+
+
+def alert_record_from_transaction(record: dict[str, Any]) -> dict[str, Any]:
+    severity = "critical" if record["riskScore"] >= 90 else "high" if record["riskScore"] >= 70 else "medium"
+    return {
+        "id": f"ALRT-{record['id']}",
+        "transactionId": record["id"],
+        "type": "Fraudulent Transaction" if record["isFraud"] == 1 else "High-Risk Review",
+        "severity": severity,
+        "status": "open",
+        "description": (
+            f"Transaction using ProductCD {record['productCode']} with amount ${record['amount']:.2f} "
+            f"was scored at risk {record['riskScore']}."
+        ),
+        "cardBrand": record["cardBrand"],
+        "productCode": record["productCode"],
+        "amount": record["amount"],
+        "riskScore": record["riskScore"],
+        "timestamp": record["timestamp"],
+        "source": record["source"],
+    }
+
+
+def recent_transaction_records(limit: int = 50) -> list[dict[str, Any]]:
+    records = [live_transaction_record(item) for item in live_predictions]
+    if historical_transactions is not None and not historical_transactions.empty:
+        top_rows = historical_transactions.sort_values("TransactionDT", ascending=False).head(limit)
+        records.extend(transaction_record(row) for _, row in top_rows.iterrows())
+
+    records.sort(key=lambda item: item["timestamp"], reverse=True)
+    return records[:limit]
+
+
+def recent_alert_records(limit: int = 20) -> list[dict[str, Any]]:
+    fraud_records = [record for record in recent_transaction_records(limit=limit * 5) if record["isFraud"] == 1]
+    alerts = [alert_record_from_transaction(record) for record in fraud_records]
+    alerts.sort(key=lambda item: item["timestamp"], reverse=True)
+    return alerts[:limit]
+
+
+def dashboard_overview_payload(frame: pd.DataFrame) -> dict[str, Any]:
+    if frame.empty:
+        return {
+            "totalVolume": {"current": 0.0, "unit": "M"},
+            "fraudLoss": {"current": 0.0, "unit": "K"},
+            "fraudDetected": {"current": 0, "unit": "cases"},
+            "fraudRate": {"current": 0.0, "unit": "%"},
+            "avgTransaction": {"current": 0.0, "unit": "USD"},
+        }
+
+    total_volume = float(frame["TransactionAmt"].sum())
+    fraud_amount = float(frame.loc[frame["isFraud"] == 1, "TransactionAmt"].sum())
+    fraud_detected = int(frame["isFraud"].sum())
+    fraud_rate = overall_fraud_rate(frame) * 100
+    avg_transaction = float(frame["TransactionAmt"].mean())
+
+    return {
+        "totalVolume": {"current": round(total_volume / 1_000_000, 2), "unit": "M"},
+        "fraudLoss": {"current": round(fraud_amount / 1_000, 2), "unit": "K"},
+        "fraudDetected": {"current": fraud_detected, "unit": "cases"},
+        "fraudRate": {"current": round(fraud_rate, 2), "unit": "%"},
+        "avgTransaction": {"current": round(avg_transaction, 2), "unit": "USD"},
+    }
+
+
+def amount_vs_fraud_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
         return []
 
-@app.on_event("startup")
-def startup_event():
-    global model, dashboard_data
-    # 1. Load the Best Model
-    if os.path.exists(MODEL_PATH):
-        model = joblib.load(MODEL_PATH)
-        print(f"✅ Loaded {MODEL_PATH}")
-    
-    # 2. Load Stats
-    if os.path.exists(STATS_PATH):
-        with open(STATS_PATH, 'r') as f:
-            dashboard_data = json.load(f)
-        print(f"✅ Loaded statistics from {STATS_PATH}")
+    chart_frame = frame.copy()
+    chart_frame["FraudAmount"] = np.where(chart_frame["isFraud"] == 1, chart_frame["TransactionAmt"], 0.0)
+    chart_frame["bucket"] = pd.cut(chart_frame["TransactionDT"], bins=6, labels=[f"Bucket {idx}" for idx in range(1, 7)])
+    grouped = chart_frame.groupby("bucket", observed=False).agg(
+        transactionAmount=("TransactionAmt", "sum"),
+        fraudAmount=("FraudAmount", "sum"),
+    )
 
-# Pydantic Schemas
-class PredictionInput(BaseModel):
-    amount: float
-    type: str = "W" # Default category
-    # Include other features if necessary for your actual model input
-    # For now, we simulate with amount + random noise for demonstration
-    pass
+    records = []
+    for _, row in grouped.reset_index().iterrows():
+        records.append(
+            {
+                "bucket": str(row["bucket"]),
+                "transactionAmount": round(float(row["transactionAmount"]) / 1_000, 2),
+                "fraudAmount": round(float(row["fraudAmount"]) / 1_000, 2),
+            }
+        )
+    return records
+
+
+def product_breakdown_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    grouped = frame.groupby("ProductCD")["TransactionAmt"].sum().sort_values(ascending=False).head(6)
+    return [
+        {
+            "name": str(name),
+            "value": round(float(value) / 1_000, 2),
+            "fill": PRODUCT_COLORS[index % len(PRODUCT_COLORS)],
+        }
+        for index, (name, value) in enumerate(grouped.items())
+    ]
+
+
+def hourly_activity_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    chart_frame = frame.copy()
+    chart_frame["hour"] = ((chart_frame["TransactionDT"] % 86_400) // 3_600).astype(int)
+    grouped = chart_frame.groupby("hour").agg(
+        transactions=("TransactionID", "count"),
+        fraudCases=("isFraud", "sum"),
+    )
+    return [
+        {
+            "hour": f"{int(row['hour']):02d}:00",
+            "transactions": int(row["transactions"]),
+            "fraudCases": int(row["fraudCases"]),
+        }
+        for _, row in grouped.reset_index().iterrows()
+    ]
+
+
+def card_brand_breakdown(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    grouped = frame.groupby("card4").agg(
+        transactions=("TransactionID", "count"),
+        fraudRate=("isFraud", "mean"),
+    ).sort_values("transactions", ascending=False).head(5)
+
+    return [
+        {
+            "name": str(index),
+            "transactions": int(row["transactions"]),
+            "fraudRate": round(float(row["fraudRate"]) * 100, 2),
+        }
+        for index, row in grouped.iterrows()
+    ]
+
+
+def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+
+    fraud_only = frame[frame["isFraud"] == 1]
+    product_rates = frame.groupby("ProductCD")["isFraud"].mean().sort_values(ascending=False)
+    riskiest_product = product_rates.index[0]
+    riskiest_rate = float(product_rates.iloc[0] * 100)
+    avg_fraud_amount = float(fraud_only["TransactionAmt"].mean()) if not fraud_only.empty else 0.0
+    avg_all_amount = float(frame["TransactionAmt"].mean()) if not frame.empty else 0.0
+    recent_live_fraud = sum(1 for item in live_predictions[:10] if item["is_fraud"] == 1)
+
+    return [
+        {
+            "id": 1,
+            "title": f"Highest fraud rate sits in ProductCD {riskiest_product}",
+            "description": f"Within the loaded IEEE transaction sample, ProductCD {riskiest_product} has a fraud rate of {riskiest_rate:.2f}%.",
+            "severity": "high" if riskiest_rate >= 10 else "medium",
+        },
+        {
+            "id": 2,
+            "title": "Fraudulent transactions are materially larger than average",
+            "description": f"Average fraudulent amount is ${avg_fraud_amount:.2f} compared with overall average ${avg_all_amount:.2f}.",
+            "severity": "critical" if avg_fraud_amount > avg_all_amount * 2 else "medium",
+        },
+        {
+            "id": 3,
+            "title": "Live prediction feed is updating backend state",
+            "description": f"The last 10 live predictions contain {recent_live_fraud} suspected fraud cases that are already reflected in the dashboard totals.",
+            "severity": "low" if recent_live_fraud == 0 else "medium",
+        },
+    ]
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    global model_artifact, historical_transactions
+
+    historical_transactions = load_historical_transactions()
+    artifact_path = resolve_deployment_artifact()
+    if artifact_path is not None:
+        model_artifact = joblib.load(artifact_path)
+        print(f"Loaded deployment model: {artifact_path.name}")
+    else:
+        print("No trained deployment model found yet.")
+
+    print(f"Loaded historical transactions: {len(historical_transactions):,} rows from {DATASET_PATH.name}")
+
+
+@app.get("/api/metadata/prediction-options")
+def prediction_options() -> dict[str, Any]:
+    frame = combined_transactions_frame()
+    if frame.empty:
+        return {"productCodes": [], "latestTransactionDt": 0}
+
+    product_codes = sorted(frame["ProductCD"].dropna().astype(str).unique().tolist())
+    latest_transaction_dt = int(frame["TransactionDT"].max())
+    return {
+        "productCodes": product_codes,
+        "latestTransactionDt": latest_transaction_dt,
+    }
+
+
+@app.get("/api/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
+
 
 @app.post("/api/predict")
-def predict(data: dict):
-    global session_fraud_count
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded. Please train first.")
-    
-    # Pre-processing (must match training)
-    # The IEEE RF model expects: ['TransactionAmt', 'TransactionDT', 'ProductCD']
-    # We mock missing features (time) as 0 for this instant prediction test
-    amt = float(data.get("amount", 100))
-    # ProductCD mapping (W=4, C=0, H=1, R=2, S=3)
-    pcd_map = {"Web": 4, "Card": 0, "High-risk": 1, "Retail": 2}
-    pcd = pcd_map.get(data.get("type"), 4)
-    
-    input_features = pd.DataFrame([[amt, 0, pcd]], columns=['TransactionAmt', 'TransactionDT', 'ProductCD'])
-    
-    # AI Prediction
-    res = int(model.predict(input_features)[0])
-    prob = float(model.predict_proba(input_features)[0][1])
+def predict(payload: PredictionInput) -> dict[str, Any]:
+    features = pd.DataFrame(
+        [
+            {
+                "TransactionAmt": payload.amount,
+                "TransactionDT": payload.transaction_dt,
+                "ProductCD": payload.product_code,
+            }
+        ]
+    )
+    prediction, probability = infer_prediction(features)
+    frame = combined_transactions_frame()
+    risk_score = compute_risk_score(
+        amount=payload.amount,
+        product_code=payload.product_code,
+        probability=probability,
+        is_fraud=prediction,
+        frame=frame,
+    )
+    transaction = append_live_prediction(payload, prediction, probability, risk_score)
 
-    if res == 1:
-        session_fraud_count += 1
-        print(f"🚩 Fraud Blocked! Total Detection: {session_fraud_count}")
+    return {
+        "is_fraud": int(prediction),
+        "fraud_probability": round(float(probability), 6),
+        "risk_score": int(risk_score),
+        "model_name": model_artifact.get("display_name", "Unknown Model") if model_artifact else "Unknown Model",
+        "feature_importance": feature_importance_from_artifact(),
+        "transaction": live_transaction_record(transaction),
+    }
 
-    return {"is_fraud": res, "fraud_probability": prob}
 
 @app.get("/api/dashboard/overview")
-def get_overview():
-    if not dashboard_data:
-        raise HTTPException(status_code=404, detail="Stats file missing. Run generate_real_stats.py first.")
-    
-    live_data = dashboard_data["overview"].copy()
-    live_data["fraud_detected"]["current"] += session_fraud_count
-    return live_data
+def get_dashboard_overview() -> dict[str, Any]:
+    return dashboard_overview_payload(combined_transactions_frame())
 
-@app.get("/api/dashboard/charts/revenue-expense")
-def get_chart_re():
-    if not dashboard_data: return {"labels": [], "revenue": [], "expenses": []}
-    return dashboard_data["charts"]["revenue_expense"]
 
-@app.get("/api/dashboard/charts/projects")
-def get_chart_projs():
-    if not dashboard_data: return []
-    return dashboard_data["charts"]["projects"]
+@app.get("/api/dashboard/charts/amount-vs-fraud")
+def get_amount_vs_fraud_chart() -> list[dict[str, Any]]:
+    return amount_vs_fraud_chart(combined_transactions_frame())
+
+
+@app.get("/api/dashboard/charts/products")
+def get_product_breakdown_chart() -> list[dict[str, Any]]:
+    return product_breakdown_chart(combined_transactions_frame())
+
+
+@app.get("/api/dashboard/charts/hourly-activity")
+def get_hourly_activity_chart() -> list[dict[str, Any]]:
+    return hourly_activity_chart(combined_transactions_frame())
+
+
+@app.get("/api/dashboard/charts/card-brands")
+def get_card_brand_chart() -> list[dict[str, Any]]:
+    return card_brand_breakdown(combined_transactions_frame())
+
+
+@app.get("/api/dashboard/insights")
+def get_dashboard_insights() -> list[dict[str, Any]]:
+    return dashboard_insights(combined_transactions_frame())
+
 
 @app.get("/api/transactions")
-def get_tx_logs():
-    if os.path.exists(DATASET_PATH):
-        df = pd.read_csv(DATASET_PATH, nrows=50)
-        return df.fillna(0).to_dict(orient="records")
-    return []
+def get_transactions(limit: int = Query(default=50, ge=1, le=200)) -> list[dict[str, Any]]:
+    return recent_transaction_records(limit=limit)
+
+
+@app.get("/api/alerts")
+def get_alerts(limit: int = Query(default=20, ge=1, le=100)) -> list[dict[str, Any]]:
+    return recent_alert_records(limit=limit)
+
+
+@app.get("/api/alerts/{alert_id}")
+def get_alert_details(alert_id: str) -> dict[str, Any]:
+    alert = next((item for item in recent_alert_records(limit=100) if item["id"] == alert_id), None)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+
+    frame = combined_transactions_frame()
+    product_rate = product_fraud_rates(frame).get(alert["productCode"], overall_fraud_rate(frame)) * 100
+    amount_p95 = float(frame["TransactionAmt"].quantile(0.95)) if not frame.empty else 0.0
+
+    return {
+        **alert,
+        "supportingFactors": [
+            {
+                "title": "Product fraud rate",
+                "description": f"ProductCD {alert['productCode']} currently shows a fraud rate of {product_rate:.2f}% in the loaded dataset.",
+                "severity": "high" if product_rate >= 10 else "medium",
+            },
+            {
+                "title": "Amount threshold check",
+                "description": f"The 95th percentile transaction amount is ${amount_p95:.2f}, while this alert amount is ${alert['amount']:.2f}.",
+                "severity": "critical" if alert["amount"] >= amount_p95 else "low",
+            },
+            {
+                "title": "Backend source",
+                "description": f"This alert was generated from {alert['source'].replace('_', ' ')} and is not backed by mock data.",
+                "severity": "low",
+            },
+        ],
+    }
+
 
 @app.get("/api/model/comparison")
-def get_eval():
-    path = "results/metrics/comparison.json"
-    if os.path.exists(path):
-        with open(path, 'r') as f: return json.load(f)
-    return []
+def get_model_comparison() -> list[dict[str, Any]]:
+    comparison_path = METRICS_ROOT / "comparison.json"
+    if not comparison_path.exists():
+        return []
+    return json.loads(comparison_path.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = int(os.getenv("API_PORT", "8000"))
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1)
+        in_use = sock.connect_ex((host, port)) == 0
+
+    if in_use:
+        print(f"Port {port} is already in use. SentinelAI backend may already be running at http://{host}:{port}")
+    else:
+        uvicorn.run(app, host=host, port=port)

@@ -1,39 +1,92 @@
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { alerts, transactions } from "@/data/mockData";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Flag, ShieldCheck, XCircle, Globe, Zap, Wifi, DollarSign } from "lucide-react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft } from "lucide-react";
+import { fetchJson } from "@/lib/api";
 
-const featureContributions = [
-  { feature: "Geographic Anomaly", contribution: 92, color: "bg-risk-critical" },
-  { feature: "Velocity Spike", contribution: 78, color: "bg-risk-high" },
-  { feature: "IP Reputation", contribution: 65, color: "bg-risk-high" },
-  { feature: "Amount Outlier", contribution: 54, color: "bg-risk-medium" },
-  { feature: "Merchant Risk", contribution: 41, color: "bg-risk-medium" },
-  { feature: "Time Pattern", contribution: 28, color: "bg-risk-low" },
-];
+interface SupportingFactor {
+  title: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "low";
+}
 
-const aiExplanations = [
-  { icon: Globe, title: "Geographic Anomaly", description: "Transaction originates from a region with no prior account activity. The IP geolocation (Eastern Europe) conflicts with the account holder's registered address (New York, US).", severity: "critical" },
-  { icon: Zap, title: "Velocity Spike", description: "3 transactions totaling $56,950 were attempted within a 12-minute window, exceeding the account's 99th percentile velocity by 4.7x.", severity: "high" },
-  { icon: Wifi, title: "IP Reputation", description: "Source IP 185.220.101.34 is associated with 23 fraud reports across partnered institutions in the last 30 days. Tor exit node detected.", severity: "high" },
-  { icon: DollarSign, title: "Amount Outlier", description: "Transaction amount of $12,450 is 8.2 standard deviations above the account's mean transaction value of $342.", severity: "medium" },
-];
+interface AlertDetailsResponse {
+  id: string;
+  transactionId: string;
+  type: string;
+  severity: "critical" | "high" | "medium" | "low";
+  status: string;
+  description: string;
+  timestamp: string;
+  amount: number;
+  riskScore: number;
+  cardBrand: string;
+  productCode: string;
+  source: string;
+  supportingFactors: SupportingFactor[];
+}
+
+function severityBadge(severity: string) {
+  const map: Record<string, string> = {
+    critical: "bg-risk-critical/10 text-risk-critical border-risk-critical/20",
+    high: "bg-risk-high/10 text-risk-high border-risk-high/20",
+    medium: "bg-risk-medium/10 text-risk-medium border-risk-medium/20",
+    low: "bg-risk-low/10 text-risk-low border-risk-low/20",
+  };
+  return map[severity] || "";
+}
 
 export default function AlertDetails() {
   const { id } = useParams();
-  const alert = alerts.find((a) => a.id === id);
-  const txn = alert ? transactions.find((t) => t.id === alert.transactionId) : null;
+  const [alert, setAlert] = useState<AlertDetailsResponse | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadAlert = async () => {
+      try {
+        const data = await fetchJson<AlertDetailsResponse>(`/api/alerts/${id}`);
+        if (active) {
+          setAlert(data);
+          setNotFound(false);
+        }
+      } catch {
+        if (active) {
+          setAlert(null);
+          setNotFound(true);
+        }
+      }
+    };
+
+    if (id) {
+      loadAlert();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (notFound) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96">
+          <p className="text-muted-foreground">Alert not found in the backend.</p>
+          <Link to="/alerts">
+            <Button variant="outline" className="mt-4">Back to Alerts</Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!alert) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-96">
-          <p className="text-muted-foreground">Alert not found</p>
-          <Link to="/alerts"><Button variant="outline" className="mt-4">Back to Alerts</Button></Link>
-        </div>
+        <div className="flex items-center justify-center h-96 text-muted-foreground">Loading alert details...</div>
       </DashboardLayout>
     );
   }
@@ -42,80 +95,52 @@ export default function AlertDetails() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Link to="/alerts"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
+          <Link to="/alerts">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{alert.type}</h1>
             <p className="text-muted-foreground text-sm">{alert.id} · {alert.transactionId}</p>
           </div>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Risk Score", value: alert.riskScore.toString(), sub: alert.severity, color: alert.riskScore >= 90 ? "text-risk-critical" : "text-risk-high" },
-            { label: "Amount", value: `$${alert.amount.toLocaleString()}`, sub: txn?.currency || "USD", color: "text-foreground" },
-            { label: "Payment Method", value: txn?.type || "Wire Transfer", sub: `****${txn?.cardLast4 || "0000"}`, color: "text-foreground" },
-            { label: "Network Latency", value: "342ms", sub: txn?.ip || "N/A", color: "text-risk-medium" },
-          ].map((c) => (
-            <div key={c.label} className="glass-card p-5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{c.label}</p>
-              <p className={`text-2xl font-bold font-mono ${c.color}`}>{c.value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{c.sub}</p>
+            { label: "Risk Score", value: alert.riskScore.toString(), sub: alert.severity },
+            { label: "Amount", value: `$${alert.amount.toLocaleString()}`, sub: "USD" },
+            { label: "Card Brand", value: alert.cardBrand, sub: `ProductCD ${alert.productCode}` },
+            { label: "Source", value: alert.source.replaceAll("_", " "), sub: new Date(alert.timestamp).toLocaleString() },
+          ].map((card) => (
+            <div key={card.label} className="glass-card p-5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{card.label}</p>
+              <p className="text-2xl font-bold font-mono text-foreground">{card.value}</p>
+              <p className="text-xs text-muted-foreground mt-1">{card.sub}</p>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* AI Explanation */}
-          <div className="glass-card p-6">
-            <h2 className="text-base font-semibold text-foreground mb-4">AI Risk Explanation</h2>
-            <div className="space-y-4">
-              {aiExplanations.map((e) => (
-                <div key={e.title} className="flex gap-3">
-                  <div className={`shrink-0 h-9 w-9 rounded-lg flex items-center justify-center ${e.severity === "critical" ? "bg-risk-critical/10" : e.severity === "high" ? "bg-risk-high/10" : "bg-risk-medium/10"}`}>
-                    <e.icon className={`h-4 w-4 ${e.severity === "critical" ? "text-risk-critical" : e.severity === "high" ? "text-risk-high" : "text-risk-medium"}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{e.title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{e.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Badge variant="outline" className={severityBadge(alert.severity)}>{alert.severity}</Badge>
+            <Badge variant="outline">{alert.status}</Badge>
           </div>
-
-          {/* Feature Contributions */}
-          <div className="glass-card p-6">
-            <h2 className="text-base font-semibold text-foreground mb-4">Feature Contributions</h2>
-            <div className="space-y-3">
-              {featureContributions.map((f) => (
-                <div key={f.feature}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-foreground">{f.feature}</span>
-                    <span className="text-xs font-mono text-muted-foreground">{f.contribution}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                    <div className={`h-full rounded-full ${f.color} transition-all`} style={{ width: `${f.contribution}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">{alert.description}</p>
         </div>
 
-        {/* Actions */}
         <div className="glass-card p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4">Actions</h2>
-          <div className="flex flex-wrap gap-3">
-            <Button className="bg-risk-critical hover:bg-risk-critical/90 text-primary-foreground" onClick={() => toast.success("Transaction flagged as fraud")}>
-              <Flag className="h-4 w-4 mr-2" /> Flag as Fraud
-            </Button>
-            <Button variant="outline" className="border-risk-high text-risk-high hover:bg-risk-high/10" onClick={() => toast.info("Verification request sent")}>
-              <ShieldCheck className="h-4 w-4 mr-2" /> Request Verification
-            </Button>
-            <Button variant="outline" onClick={() => toast("Alert dismissed")}>
-              <XCircle className="h-4 w-4 mr-2" /> Dismiss Alert
-            </Button>
+          <h2 className="text-base font-semibold text-foreground mb-4">Supporting Factors</h2>
+          <div className="space-y-4">
+            {alert.supportingFactors.map((factor) => (
+              <div key={factor.title} className="p-4 rounded-xl bg-secondary/30 border border-border/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline" className={severityBadge(factor.severity)}>{factor.severity}</Badge>
+                  <p className="text-sm font-medium text-foreground">{factor.title}</p>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{factor.description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

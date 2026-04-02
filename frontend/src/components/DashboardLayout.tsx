@@ -1,12 +1,22 @@
-import { ReactNode, useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, ArrowLeftRight, ShieldAlert, Brain, Search, Bell, Shield, Sun, Moon, Activity
+  Activity,
+  ArrowLeftRight,
+  Bell,
+  Brain,
+  LayoutDashboard,
+  Moon,
+  Search,
+  Shield,
+  ShieldAlert,
+  Sun,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { alerts } from "@/data/mockData";
+import { fetchJson } from "@/lib/api";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -16,10 +26,19 @@ const navItems = [
   { label: "Model Evaluation", path: "/evaluation", icon: Activity },
 ];
 
+interface AlertNotification {
+  id: string;
+  type: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "low";
+  timestamp: string;
+}
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [alerts, setAlerts] = useState<AlertNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,17 +51,38 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadAlerts = async () => {
+      try {
+        const data = await fetchJson<AlertNotification[]>("/api/alerts?limit=5");
+        if (active) {
+          setAlerts(data);
+        }
+      } catch {
+        if (active) {
+          setAlerts([]);
+        }
+      }
+    };
+
+    loadAlerts();
+    const interval = window.setInterval(loadAlerts, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col">
-      {/* Header NavBar */}
       <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-6 bg-card/80 backdrop-blur-md border-b border-border">
-        {/* Logo */}
         <Link to="/dashboard" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
           <Shield className="h-7 w-7 text-primary shrink-0" />
           <span className="text-xl font-bold text-foreground tracking-tight">SentinelAI</span>
         </Link>
 
-        {/* Right side: Search, Navigation, Extras */}
         <div className="flex items-center gap-4">
           <div className="relative w-64 hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -69,9 +109,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
 
-          {/* Notification Bell Dropdown */}
           <div className="relative" ref={dropdownRef}>
-            <Button variant="ghost" size="icon" onClick={() => setShowNotifications(!showNotifications)}>
+            <Button variant="ghost" size="icon" onClick={() => setShowNotifications((current) => !current)}>
               <Bell className="h-5 w-5" />
               {alerts.length > 0 && (
                 <span className="absolute top-0 right-0 max-h-4 min-w-[16px] rounded-full bg-risk-critical px-1 text-[10px] font-bold flex items-center justify-center text-primary-foreground">
@@ -84,28 +123,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-border bg-secondary/30 flex justify-between items-center">
                   <span className="font-semibold text-sm">Notifications ({alerts.length})</span>
-                  <Link to="/alerts" className="text-xs text-primary hover:underline font-medium" onClick={() => setShowNotifications(false)}>View all</Link>
+                  <Link to="/alerts" className="text-xs text-primary hover:underline font-medium" onClick={() => setShowNotifications(false)}>
+                    View all
+                  </Link>
                 </div>
                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                   {alerts.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-muted-foreground">No new alerts</div>
+                    <div className="p-8 text-center text-sm text-muted-foreground">No active alerts from the backend right now.</div>
                   ) : (
                     alerts.map((alert) => (
-                      <Link 
-                        key={alert.id} 
-                        to={`/alerts/${alert.id}`} 
-                        className="block p-4 border-b border-border/50 hover:bg-muted/50 transition-colors last:border-0" 
+                      <Link
+                        key={alert.id}
+                        to={`/alerts/${alert.id}`}
+                        className="block p-4 border-b border-border/50 hover:bg-muted/50 transition-colors last:border-0"
                         onClick={() => setShowNotifications(false)}
                       >
                         <div className="flex items-start gap-3">
-                           <div className={`mt-0.5 p-1.5 rounded-full shrink-0 ${alert.severity === 'critical' ? 'bg-red-500/10 text-red-500' : alert.severity === 'high' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                             <ShieldAlert className="w-4 h-4" />
-                           </div>
-                           <div className="space-y-1">
-                             <p className="text-sm font-semibold text-foreground line-clamp-1">{alert.type}</p>
-                             <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{alert.description}</p>
-                             <p className="text-[10px] font-medium text-muted-foreground mt-2">{new Date(alert.timestamp).toLocaleTimeString()}</p>
-                           </div>
+                          <div className={`mt-0.5 p-1.5 rounded-full shrink-0 ${alert.severity === "critical" ? "bg-red-500/10 text-red-500" : alert.severity === "high" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"}`}>
+                            <ShieldAlert className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-foreground line-clamp-1">{alert.type}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{alert.description}</p>
+                            <p className="text-[10px] font-medium text-muted-foreground mt-2">{new Date(alert.timestamp).toLocaleString()}</p>
+                          </div>
                         </div>
                       </Link>
                     ))
@@ -117,10 +158,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 overflow-auto">
-        {children}
-      </main>
+      <main className="flex-1 p-6 overflow-auto">{children}</main>
     </div>
   );
 }
