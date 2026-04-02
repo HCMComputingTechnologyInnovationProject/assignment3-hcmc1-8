@@ -6,10 +6,10 @@ A unified project for machine learning modeling and its corresponding real-time 
 
 | Name                  | Student ID | Task & Responsibility                                                                          |
 | :-------------------- | :--------- | :--------------------------------------------------------------------------------------------- |
-| Bui Quang Doan        | 104993227  | Data Processing & Dataset Preparation for 2006, Frontend Support                               |
-| Do Gia Huy (Leader)   | 104988294  | ML Implementation (LSTM/GRU), Model Evaluation, Data Processing & Dataset Preparation for 2014 |
-| Huynh Doan Hoang Minh | 104777308  | ML Implementation (LightGBM), Model Evaluation, Backend, Frontend Supporter                    |
-| Le Thanh Nam          | 104999380  | System Integration, Travel Time Estimation & GUI                                               |
+| Huynh Ba Thanh        | 105029615  | Data Processing & Dataset Preparation for IEEE, PaySim, and ULB, Frontend Support              |
+| Le Thanh Nam (Leader) | 104999380  | ML Implementation (Logistics Regression/GRU), Model Evaluation, Backend, AI Integration        |
+| Nguyen Hai Dang       | 105680423  | Model Evaluation Metrics, Frontend Support                                                     |
+| Ho Cao Cuong          | 105687343  | ML Implementation (Isolation Forest), Backend Support                                          |
 
 ## 📂 Project Structure
 
