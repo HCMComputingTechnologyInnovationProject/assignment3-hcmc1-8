@@ -28,8 +28,8 @@ __pycache__
 .venv
 backend/data/processed/
 backend/data/raw/
-backend/results/models/*.pkl
-backend/results/figures/*.png
-backend/results/metrics/*.json (if mock)
+# backend/results/metrics/*.json
+# backend/results/models/*.pkl
+# backend/results/figures/*.png
 .ipynb_checkpoints
 *.pyc
