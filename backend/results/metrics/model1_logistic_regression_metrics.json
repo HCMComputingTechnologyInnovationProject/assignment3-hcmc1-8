@@ -2,40 +2,40 @@
   "name": "Logistic Regression",
   "model_key": "logistic_regression",
   "artifact": "model1_logistic_regression.pkl",
-  "accuracy": 0.84095,
-  "precision": 0.07350591243208693,
+  "accuracy": 0.841,
+  "precision": 0.07352941176470588,
   "recall": 0.44921875,
-  "f1_score": 0.1263389178797034,
+  "f1_score": 0.12637362637362637,
   "confusion_matrix": {
-    "true_negative": 16589,
-    "false_positive": 2899,
+    "true_negative": 16590,
+    "false_positive": 2898,
     "false_negative": 282,
     "true_positive": 230
   },
   "classification_report": {
     "0": {
-      "precision": 0.9832849267974632,
-      "recall": 0.851241789819376,
-      "f1-score": 0.9125113451965126,
+      "precision": 0.9832859174964438,
+      "recall": 0.8512931034482759,
+      "f1-score": 0.9125412541254125,
       "support": 19488.0
     },
     "1": {
-      "precision": 0.07350591243208693,
+      "precision": 0.07352941176470588,
       "recall": 0.44921875,
-      "f1-score": 0.1263389178797034,
+      "f1-score": 0.12637362637362637,
       "support": 512.0
     },
-    "accuracy": 0.84095,
+    "accuracy": 0.841,
     "macro avg": {
-      "precision": 0.5283954196147751,
-      "recall": 0.650230269909688,
-      "f1-score": 0.519425131538108,
+      "precision": 0.5284076646305749,
+      "recall": 0.6502559267241379,
+      "f1-score": 0.5194574402495195,
       "support": 20000.0
     },
     "weighted avg": {
-      "precision": 0.9599945840297096,
-      "recall": 0.84095,
-      "f1-score": 0.8923853310572022,
+      "precision": 0.9599961509497112,
+      "recall": 0.841,
+      "f1-score": 0.8924153628549668,
       "support": 20000.0
     }
   },
@@ -58,17 +58,17 @@
   "feature_importance": [
     {
       "name": "ProductCD",
-      "value": 89.48
-    },
-    {
-      "name": "TransactionAmt",
-      "value": 7.5
+      "value": 91.32
     },
     {
       "name": "TransactionDT",
-      "value": 3.02
+      "value": 5.27
+    },
+    {
+      "name": "TransactionAmt",
+      "value": 3.41
     }
   ],
   "supports_probability": true,
-  "auc_roc": 0.6766709200854373
+  "auc_roc": 0.6767617211553263
 }

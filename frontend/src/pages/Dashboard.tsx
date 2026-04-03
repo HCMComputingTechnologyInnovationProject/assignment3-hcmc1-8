@@ -4,6 +4,7 @@ import { Bar, Doughnut, Line } from "react-chartjs-2";
 import { AlertTriangle, CreditCard, ShieldAlert } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { fetchJson } from "@/lib/api";
+import { motion } from "framer-motion";
 import "@/lib/chartjs";
 
 interface OverviewMetric {
@@ -132,6 +133,19 @@ export default function Dashboard() {
     }
     return Math.max(...cardBrands.map((brand) => brand.fraudRate), 1);
   }, [cardBrands]);
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.5,
+        ease: "easeOut",
+      },
+    }),
+  };
 
   const amountVsFraudData = useMemo<ChartData<"bar">>(() => ({
     labels: amountVsFraud.map((point) => point.bucket),
@@ -266,17 +280,31 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm mt-1">This page now uses Chart.js charts and SQLite-backed prediction persistence.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className={`glass-card p-5 border-t-[3px] ${stat.border} shadow-md hover:shadow-lg transition-all duration-300 flex flex-col justify-center min-h-[110px]`}>
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4"
+          initial="hidden"
+          animate="visible"
+        >
+          {stats.map((stat, i) => (
+            <motion.div 
+              key={stat.label} 
+              custom={i}
+              variants={cardVariants}
+              className={`glass-card p-5 border-t-[3px] ${stat.border} shadow-md hover:shadow-lg transition-all duration-300 flex flex-col justify-center min-h-[110px]`}
+            >
               <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{stat.label}</div>
               <div className="text-2xl font-bold text-foreground">{stat.value}</div>
               <div className="text-[11px] font-medium text-muted-foreground mt-1.5">{stat.subtitle}</div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <motion.div 
+          className="grid grid-cols-1 xl:grid-cols-3 gap-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[420px] shadow-sm hover:shadow-md transition-shadow">
             <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Transaction Amount vs Fraud Amount</h2>
             <div className="flex-1 min-h-0">
@@ -293,9 +321,14 @@ export default function Dashboard() {
               <Doughnut data={productBreakdownData} options={productBreakdownOptions} />
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <motion.div 
+          className="grid grid-cols-1 xl:grid-cols-3 gap-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[380px] shadow-sm hover:shadow-md transition-shadow">
             <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Hourly Activity and Fraud Cases</h2>
             <div className="flex-1 min-h-0">
@@ -327,9 +360,14 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="glass-card p-6 shadow-sm hover:shadow-md transition-shadow">
+        <motion.div 
+          className="glass-card p-6 shadow-sm hover:shadow-md transition-shadow"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+        >
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="w-5 h-5 text-primary" />
             <h2 className="text-base font-bold text-foreground tracking-tight">Backend-Derived Insights</h2>
@@ -344,7 +382,7 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
     </DashboardLayout>
   );

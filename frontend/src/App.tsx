@@ -11,7 +11,7 @@ import AlertDetails from "./pages/AlertDetails";
 import Prediction from "./pages/Prediction";
 import ModelEvaluation from "./pages/ModelEvaluation";
 import NotFound from "./pages/NotFound";
-import About from "./pages/About";
+import About from "./pages/AboutUs";
 
 const queryClient = new QueryClient();
 

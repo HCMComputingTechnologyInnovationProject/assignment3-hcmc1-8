@@ -2,40 +2,40 @@
   "name": "Isolation Forest",
   "model_key": "isolation_forest",
   "artifact": "model2_isolation_forest.pkl",
-  "accuracy": 0.94665,
-  "precision": 0.022375215146299483,
-  "recall": 0.025390625,
-  "f1_score": 0.023787740164684355,
+  "accuracy": 0.6529,
+  "precision": 0.04202279202279202,
+  "recall": 0.576171875,
+  "f1_score": 0.07833244822092406,
   "confusion_matrix": {
-    "true_negative": 18920,
-    "false_positive": 568,
-    "false_negative": 499,
-    "true_positive": 13
+    "true_negative": 12763,
+    "false_positive": 6725,
+    "false_negative": 217,
+    "true_positive": 295
   },
   "classification_report": {
     "0": {
-      "precision": 0.9743035171739018,
-      "recall": 0.9708538587848933,
-      "f1-score": 0.9725756290641787,
+      "precision": 0.9832819722650231,
+      "recall": 0.6549158456486043,
+      "f1-score": 0.7861894788715043,
       "support": 19488.0
     },
     "1": {
-      "precision": 0.022375215146299483,
-      "recall": 0.025390625,
-      "f1-score": 0.023787740164684355,
+      "precision": 0.04202279202279202,
+      "recall": 0.576171875,
+      "f1-score": 0.07833244822092406,
       "support": 512.0
     },
-    "accuracy": 0.94665,
+    "accuracy": 0.6529,
     "macro avg": {
-      "precision": 0.49833936616010066,
-      "recall": 0.49812224189244664,
-      "f1-score": 0.4981816846144315,
+      "precision": 0.5126523821439075,
+      "recall": 0.6155438603243022,
+      "f1-score": 0.4322609635462141,
       "support": 20000.0
     },
     "weighted avg": {
-      "precision": 0.9499341526419952,
-      "recall": 0.94665,
-      "f1-score": 0.9482866591083517,
+      "precision": 0.959185737250822,
+      "recall": 0.6529,
+      "f1-score": 0.7680683388868494,
       "support": 20000.0
     }
   },
@@ -57,5 +57,5 @@
   },
   "feature_importance": [],
   "supports_probability": false,
-  "auc_roc": 0.6150107798709462
+  "auc_roc": 0.6119867334224907
 }

@@ -26,7 +26,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler
 from xgboost import XGBClassifier
 
 
@@ -73,9 +73,11 @@ MODEL_CONFIGS = {
         display_name="Isolation Forest",
         artifact_name="model2_isolation_forest.pkl",
         builder=lambda: IsolationForest(
-            n_estimators=200,
-            contamination=0.03,
+            n_estimators=300,
+            contamination="auto",
+            max_samples="auto",
             random_state=DEFAULT_RANDOM_STATE,
+            n_jobs=1,
         ),
         supervised=False,
         supports_probability=False,
@@ -134,7 +136,7 @@ def build_preprocessor() -> ColumnTransformer:
                 Pipeline(
                     steps=[
                         ("imputer", SimpleImputer(strategy="median")),
-                        ("scaler", StandardScaler()),
+                        ("scaler", RobustScaler()),
                     ]
                 ),
                 ["TransactionAmt", "TransactionDT"],

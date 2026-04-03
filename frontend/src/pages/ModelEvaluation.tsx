@@ -12,6 +12,7 @@ interface ModelMetric {
   precision: number;
   recall: number;
   f1_score: number;
+  auc_roc?: number;
   split: {
     train_rows: number;
     test_rows: number;
@@ -73,6 +74,12 @@ export default function ModelEvaluation() {
         label: "F1 Score",
         data: metrics.map((metric) => Number(metric.f1_score.toFixed(4))),
         backgroundColor: "#10b981",
+        borderRadius: 8,
+      },
+      {
+        label: "AUC-ROC",
+        data: metrics.map((metric) => Number((metric.auc_roc || 0).toFixed(4))),
+        backgroundColor: "#f59e0b",
         borderRadius: 8,
       },
     ],
@@ -146,6 +153,7 @@ export default function ModelEvaluation() {
                   <th className="px-6 py-4 font-semibold">Precision</th>
                   <th className="px-6 py-4 font-semibold">Recall</th>
                   <th className="px-6 py-4 font-semibold">F1 Score</th>
+                  <th className="px-6 py-4 font-semibold">AUC-ROC</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -158,6 +166,7 @@ export default function ModelEvaluation() {
                     <td className="px-6 py-4">{model.precision.toFixed(4)}</td>
                     <td className="px-6 py-4">{model.recall.toFixed(4)}</td>
                     <td className="px-6 py-4 font-semibold">{model.f1_score.toFixed(4)}</td>
+                    <td className="px-6 py-4 text-primary font-medium">{(model.auc_roc || 0).toFixed(4)}</td>
                   </tr>
                 ))}
               </tbody>

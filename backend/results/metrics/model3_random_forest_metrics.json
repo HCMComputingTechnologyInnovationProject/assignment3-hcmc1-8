@@ -2,40 +2,40 @@
   "name": "Random Forest",
   "model_key": "random_forest",
   "artifact": "model3_random_forest.pkl",
-  "accuracy": 0.87955,
-  "precision": 0.11142974190905366,
+  "accuracy": 0.8795,
+  "precision": 0.11138411138411139,
   "recall": 0.53125,
-  "f1_score": 0.1842194378598036,
+  "f1_score": 0.18415707515233581,
   "confusion_matrix": {
-    "true_negative": 17319,
-    "false_positive": 2169,
+    "true_negative": 17318,
+    "false_positive": 2170,
     "false_negative": 240,
     "true_positive": 272
   },
   "classification_report": {
     "0": {
-      "precision": 0.9863317956603451,
-      "recall": 0.8887007389162561,
-      "f1-score": 0.9349744918616892,
+      "precision": 0.9863310172001367,
+      "recall": 0.8886494252873564,
+      "f1-score": 0.9349457431301625,
       "support": 19488.0
     },
     "1": {
-      "precision": 0.11142974190905366,
+      "precision": 0.11138411138411139,
       "recall": 0.53125,
-      "f1-score": 0.1842194378598036,
+      "f1-score": 0.18415707515233581,
       "support": 512.0
     },
-    "accuracy": 0.87955,
+    "accuracy": 0.8795,
     "macro avg": {
-      "precision": 0.5488807687846994,
-      "recall": 0.7099753694581281,
-      "f1-score": 0.5595969648607464,
+      "precision": 0.5488575642921241,
+      "recall": 0.7099497126436782,
+      "f1-score": 0.5595514091412492,
       "support": 20000.0
     },
     "weighted avg": {
-      "precision": 0.9639343030843122,
-      "recall": 0.87955,
-      "f1-score": 0.9157551624792409,
+      "precision": 0.9639323764112465,
+      "recall": 0.8795,
+      "f1-score": 0.9157255532299301,
       "support": 20000.0
     }
   },
@@ -70,5 +70,5 @@
     }
   ],
   "supports_probability": true,
-  "auc_roc": 0.8005474823449046
+  "auc_roc": 0.8005145093294592
 }

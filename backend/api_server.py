@@ -125,13 +125,6 @@ def load_historical_transactions() -> pd.DataFrame:
 
 
 def resolve_deployment_artifact(model_id: str = "xgboost") -> Path | None:
-    deployment_target_path = METRICS_ROOT / "deployment_target.json"
-    if deployment_target_path.exists() and model_id == "xgboost":
-        deployment_target = json.loads(deployment_target_path.read_text(encoding="utf-8"))
-        candidate = MODELS_ROOT / deployment_target["artifact"]
-        if candidate.exists():
-            return candidate
-
     model_files = {
         "xgboost": "model4_xgboost.pkl",
         "random_forest": "model3_random_forest.pkl",
@@ -230,9 +223,9 @@ def compute_risk_score(
 
 
 def feature_importance_from_artifact() -> list[dict[str, float]]:
-    if model_artifact is None:
+    if model_artifacts is None:
         return []
-    raw_importance = model_artifact.get("feature_importance", [])
+    raw_importance = model_artifacts.get("feature_importance", [])
     return [{"name": str(item["name"]), "value": float(item["value"])} for item in raw_importance]
 
 
