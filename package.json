@@ -14,5 +14,8 @@
   },
   "description": "Root management for SentinelAI Fullstack Project",
   "author": "Swinburne Student",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "motion": "^12.38.0"
+  }
 }

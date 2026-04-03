@@ -16,8 +16,34 @@ SentinelAI is a full-stack fraud detection project built with React, FastAPI, sc
 - Frontend: React, Vite, TypeScript, Tailwind CSS, Chart.js
 - Backend: FastAPI, Pydantic
 - ML: scikit-learn, XGBoost, joblib
-- Data: IEEE-CIS `train_transaction.csv`
+- Data: IEEE-CIS, PaySim, ULB (see Dataset section below)
 - Persistence: SQLite
+
+## Dataset
+
+This project uses multiple fraud detection datasets:
+
+- IEEE-CIS Fraud Detection (`train_transaction.csv`)
+- PaySim Mobile Money Transactions
+- ULB Credit Card Fraud Dataset
+
+Due to large file sizes, all datasets are hosted on Google Drive.
+
+- Download All Datasets: [Google Drive Link](https://drive.google.com/file/d/15am_9a7qWk6tBoXA92ZEmKxgJmcmhBvn/view?usp=drive_link)
+
+### Setup
+
+1. Download the dataset folder from the link above
+2. Extract the files (if zipped)
+3. Place all datasets into:
+
+backend/data/raw/
+
+### Notes
+
+- Ensure all dataset files are placed correctly inside `backend/data/raw/`
+- Do not rename files, as training scripts depend on exact filenames
+- The project processes and combines these datasets during training
 
 ## Project Structure
 
