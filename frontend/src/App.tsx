@@ -11,6 +11,7 @@ import AlertDetails from "./pages/AlertDetails";
 import Prediction from "./pages/Prediction";
 import ModelEvaluation from "./pages/ModelEvaluation";
 import NotFound from "./pages/NotFound";
+import About from "./pages/About";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/alerts/:id" element={<AlertDetails />} />
             <Route path="/prediction" element={<Prediction />} />
             <Route path="/evaluation" element={<ModelEvaluation />} />
+            <Route path="/about" element={<About />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

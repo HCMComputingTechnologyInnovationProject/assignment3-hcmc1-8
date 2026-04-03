@@ -12,6 +12,7 @@ import {
   Shield,
   ShieldAlert,
   Sun,
+  Users
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ const navItems = [
   { label: "Alerts", path: "/alerts", icon: ShieldAlert },
   { label: "Prediction", path: "/prediction", icon: Brain },
   { label: "Model Evaluation", path: "/evaluation", icon: Activity },
+  { label: "About Us", path: "/about", icon: Users },
 ];
 
 interface AlertNotification {
