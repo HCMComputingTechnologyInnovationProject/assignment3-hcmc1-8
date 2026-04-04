@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChartData, ChartOptions } from "chart.js";
 import { Bar, Doughnut, Line } from "react-chartjs-2";
-import { AlertTriangle, CreditCard, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CreditCard, Info, ShieldAlert } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { fetchJson } from "@/lib/api";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import "@/lib/chartjs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const PRODUCT_LABEL_MAP: Record<string, string> = {
+  W: "Web (Online)",
+  H: "Handheld (Mobile)",
+  R: "Retail (Store)",
+  S: "Surface (In-person)",
+  C: "Credit (Transaction)",
+};
 
 interface OverviewMetric {
   current: number;
@@ -134,7 +143,7 @@ export default function Dashboard() {
     return Math.max(...cardBrands.map((brand) => brand.fraudRate), 1);
   }, [cardBrands]);
 
-  const cardVariants = {
+  const cardVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: (i: number) => ({
       opacity: 1,
@@ -142,7 +151,7 @@ export default function Dashboard() {
       transition: {
         delay: i * 0.1,
         duration: 0.5,
-        ease: "easeOut",
+        ease: "easeOut" as const,
       },
     }),
   };
@@ -193,7 +202,7 @@ export default function Dashboard() {
   }), []);
 
   const productBreakdownData = useMemo<ChartData<"doughnut">>(() => ({
-    labels: products.map((product) => product.name),
+    labels: products.map((product) => PRODUCT_LABEL_MAP[product.name] || product.name),
     datasets: [
       {
         label: "Product Breakdown",
@@ -274,7 +283,8 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <TooltipProvider>
+        <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Dashboard Overview</h1>
           <p className="text-muted-foreground text-sm mt-1">This page now uses Chart.js charts and SQLite-backed prediction persistence.</p>
@@ -306,16 +316,54 @@ export default function Dashboard() {
           transition={{ delay: 0.4 }}
         >
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[420px] shadow-sm hover:shadow-md transition-shadow">
-            <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Transaction Amount vs Fraud Amount</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-base font-bold text-foreground tracking-tight">Transaction Amount vs Fraud Amount</h2>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] p-3 space-y-2">
+                  <p className="font-bold text-xs">Transaction vs Fraud Analysis</p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Description:</span> Shows the distribution of transaction volume and associated fraud losses across time buckets.
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Purpose:</span> Helps identify if fraud spikes correlate with higher overall volumes or specific periods.
+                  </p>
+                  <p className="text-[11px]">
+                    <span className="font-semibold text-primary">Data Source:</span> Historical IEEE records + Live Persistence.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="flex-1 min-h-0">
               <Bar data={amountVsFraudData} options={amountVsFraudOptions} />
             </div>
           </div>
 
           <div className="glass-card p-6 flex flex-col h-[420px] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-4">
-              <ShieldAlert className="w-5 h-5 text-primary" />
-              <h2 className="text-base font-bold text-foreground tracking-tight">Product Code Breakdown</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-primary" />
+                <h2 className="text-base font-bold text-foreground tracking-tight">Category Breakdown</h2>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] p-3 space-y-2">
+                  <p className="font-bold text-xs">Transaction Category Analysis</p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Description:</span> Breakdown of transaction volume (in 1K units) across product channels like Web, Mobile, or Retail.
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Purpose:</span> Identifies the most utilized channels and detect if certain categories are disproportionately targets.
+                  </p>
+                  <p className="text-[11px]">
+                    <span className="font-semibold text-primary">Data Source:</span> Aggregated ProductCD statistics.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="flex-1 min-h-0">
               <Doughnut data={productBreakdownData} options={productBreakdownOptions} />
@@ -330,16 +378,54 @@ export default function Dashboard() {
           transition={{ delay: 0.6 }}
         >
           <div className="xl:col-span-2 glass-card p-6 flex flex-col h-[380px] shadow-sm hover:shadow-md transition-shadow">
-            <h2 className="text-base font-bold text-foreground tracking-tight mb-6">Hourly Activity and Fraud Cases</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-base font-bold text-foreground tracking-tight">Hourly Activity and Fraud Cases</h2>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] p-3 space-y-2">
+                  <p className="font-bold text-xs">Hourly Trend Monitor</p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Description:</span> Temporal view of transaction frequency vs fraud incidents throughout the day.
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Purpose:</span> Detect time-of-day biases that may indicate automated bot attacks or regional fraud waves.
+                  </p>
+                  <p className="text-[11px]">
+                    <span className="font-semibold text-primary">Data Source:</span> TransactionDT timestamp analysis.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="flex-1 min-h-0">
               <Line data={hourlyActivityData} options={hourlyActivityOptions} />
             </div>
           </div>
 
           <div className="glass-card p-6 flex flex-col h-[380px] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-4">
-              <CreditCard className="w-5 h-5 text-primary" />
-              <h2 className="text-base font-bold text-foreground tracking-tight">Top Card Brands</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" />
+                <h2 className="text-base font-bold text-foreground tracking-tight">Top Card Brands</h2>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] p-3 space-y-2">
+                  <p className="font-bold text-xs">Card Issuer Risk Profile</p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Description:</span> Comparison of card brands (Visa, Mastercard, etc.) by volume and fraud detection rate.
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    <span className="font-semibold text-primary">Purpose:</span> Prioritize screening based on the historical risk profiles of different card networks.
+                  </p>
+                  <p className="text-[11px]">
+                    <span className="font-semibold text-primary">Data Source:</span> Metadata from card4 column.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
               {cardBrands.length === 0 && <p className="text-sm text-muted-foreground">No card-brand aggregates available.</p>}
@@ -383,7 +469,43 @@ export default function Dashboard() {
             ))}
           </div>
         </motion.div>
+
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.0 }}
+        >
+          <div className="glass-card p-5 border-l-2 border-primary/30">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-risk-high" />
+              About Risk Score
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Risk Score (1-99) combines AI model confidence with business risk rules. It increases if the transaction amount is exceptionally high (top 5%) or the product category has high historical fraud rates.
+            </p>
+          </div>
+          <div className="glass-card p-5 border-l-2 border-primary/30">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary" />
+              About Feature Importance
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Extracted directly from the AI model (XGBoost/Random Forest), this shows the top technical features contributing to a transaction's fraud classification.
+            </p>
+          </div>
+          <div className="glass-card p-5 border-l-2 border-primary/30">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-risk-low" />
+              About Probability
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              The raw AI confidence score representing the mathematical likelihood (0-100%) that the transaction is fraudulent based on historical training data patterns.
+            </p>
+          </div>
+        </motion.div>
       </div>
+      </TooltipProvider>
     </DashboardLayout>
   );
 }

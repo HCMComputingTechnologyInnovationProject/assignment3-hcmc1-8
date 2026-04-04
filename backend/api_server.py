@@ -20,7 +20,7 @@ APP_ROOT = Path(__file__).resolve().parent
 RESULTS_ROOT = APP_ROOT / "results"
 MODELS_ROOT = RESULTS_ROOT / "models"
 METRICS_ROOT = RESULTS_ROOT / "metrics"
-DATASET_PATH = APP_ROOT / "data" / "raw" / "train_transaction.csv"
+DATASET_PATH = APP_ROOT / "data" / "test" / "test_transactions.csv"
 PREDICTIONS_DB_PATH = APP_ROOT / "data" / "predictions.db"
 DATASET_EPOCH = datetime(2017, 12, 1, tzinfo=timezone.utc)
 DATASET_SAMPLE_ROWS = 150_000
@@ -34,6 +34,15 @@ DATASET_COLUMNS = [
     "card4",
     "isFraud",
 ]
+
+PRODUCT_LABEL_MAP = {
+    "W": "Web (Online)",
+    "H": "Handheld (Mobile)",
+    "R": "Retail (Store)",
+    "S": "Surface (In-person)",
+    "C": "Credit (Transaction)",
+    "Unknown": "Unknown Category"
+}
 
 app = FastAPI(title="SentinelAI API", description="Real fraud analytics and model inference API")
 
@@ -222,11 +231,15 @@ def compute_risk_score(
     return int(max(1, min(99, round(score))))
 
 
-def feature_importance_from_artifact() -> list[dict[str, float]]:
-    if model_artifacts is None:
+def feature_importance_from_artifact(model_id: str = "xgboost") -> list[dict[str, float]]:
+    artifact = model_artifacts.get(model_id)
+    if not artifact or "feature_importance" not in artifact:
         return []
-    raw_importance = model_artifacts.get("feature_importance", [])
-    return [{"name": str(item["name"]), "value": float(item["value"])} for item in raw_importance]
+    
+    raw_importance = artifact["feature_importance"]
+    # Return top 10 features for clarity
+    sorted_importance = sorted(raw_importance, key=lambda x: x["value"], reverse=True)[:10]
+    return [{"name": str(item["name"]), "value": float(item["value"])} for item in sorted_importance]
 
 
 def infer_prediction(features: pd.DataFrame, model_id: str = "xgboost") -> tuple[int, float]:
@@ -368,8 +381,8 @@ def alert_record_from_transaction(record: dict[str, Any]) -> dict[str, Any]:
         "severity": severity,
         "status": "open",
         "description": (
-            f"Transaction using ProductCD {record['productCode']} with amount ${record['amount']:.2f} "
-            f"was scored at risk {record['riskScore']}."
+            f"Transaction using category {PRODUCT_LABEL_MAP.get(record['productCode'], record['productCode'])} "
+            f"with amount ${record['amount']:.2f} was scored at risk {record['riskScore']}."
         ),
         "cardBrand": record["cardBrand"],
         "productCode": record["productCode"],
@@ -460,7 +473,7 @@ def product_breakdown_chart(frame: pd.DataFrame) -> list[dict[str, Any]]:
     grouped = frame.groupby("ProductCD")["TransactionAmt"].sum().sort_values(ascending=False).head(6)
     return [
         {
-            "name": str(name),
+            "name": PRODUCT_LABEL_MAP.get(str(name), str(name)),
             "value": round(float(value) / 1_000, 2),
             "fill": PRODUCT_COLORS[index % len(PRODUCT_COLORS)],
         }
@@ -515,6 +528,7 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
     product_rates = frame.groupby("ProductCD")["isFraud"].mean().sort_values(ascending=False)
     riskiest_product = product_rates.index[0]
     riskiest_rate = float(product_rates.iloc[0] * 100)
+    riskiest_label = PRODUCT_LABEL_MAP.get(str(riskiest_product), str(riskiest_product))
     avg_fraud_amount = float(fraud_only["TransactionAmt"].mean()) if not fraud_only.empty else 0.0
     avg_all_amount = float(frame["TransactionAmt"].mean())
     recent_persisted_fraud = sum(1 for item in fetch_persisted_predictions(limit=10) if int(item["is_fraud"]) == 1)
@@ -522,8 +536,8 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return [
         {
             "id": 1,
-            "title": f"Highest fraud rate sits in ProductCD {riskiest_product}",
-            "description": f"Within the loaded IEEE transaction sample, ProductCD {riskiest_product} has a fraud rate of {riskiest_rate:.2f}%.",
+            "title": f"Highest fraud rate sits in {riskiest_label}",
+            "description": f"Within the loaded IEEE transaction sample, {riskiest_label} has a fraud rate of {riskiest_rate:.2f}%.",
             "severity": "high" if riskiest_rate >= 10 else "medium",
         },
         {
@@ -636,7 +650,7 @@ def predict(payload: PredictionInput) -> dict[str, Any]:
         "fraud_probability": round(float(probability), 6),
         "risk_score": int(risk_score),
         "model_name": artifact.get("display_name", payload.model_id) if artifact else payload.model_id,
-        "feature_importance": feature_importance_from_artifact() if payload.model_id == "xgboost" else [],
+        "feature_importance": feature_importance_from_artifact(model_id=payload.model_id),
         "transaction": persisted_transaction_record(transaction),
     }
 
@@ -681,7 +695,7 @@ def get_alert_details(alert_id: str) -> dict[str, Any]:
         "supportingFactors": [
             {
                 "title": "Product fraud rate",
-                "description": f"ProductCD {alert['productCode']} currently shows a fraud rate of {product_rate:.2f}% in the loaded dataset.",
+                "description": f"Category {PRODUCT_LABEL_MAP.get(alert['productCode'], alert['productCode'])} currently shows a fraud rate of {product_rate:.2f}% in the loaded dataset.",
                 "severity": "high" if product_rate >= 10 else "medium",
             },
             {

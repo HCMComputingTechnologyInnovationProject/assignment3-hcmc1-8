@@ -27,7 +27,8 @@ dist-ssr
 __pycache__
 .venv
 backend/data/processed/
-backend/data/raw/
+backend/data/raw/*.csv
+!backend/data/test/
 # backend/results/metrics/*.json
 # backend/results/models/*.pkl
 # backend/results/figures/*.png

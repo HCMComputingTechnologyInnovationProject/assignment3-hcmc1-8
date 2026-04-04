@@ -10,6 +10,14 @@ import { ChevronLeft, ChevronRight, RefreshCcw, Search } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
+const PRODUCT_LABEL_MAP: Record<string, string> = {
+  W: "Web (Online)",
+  H: "Handheld (Mobile)",
+  R: "Retail (Store)",
+  S: "Surface (In-person)",
+  C: "Credit (Transaction)",
+};
+
 interface TransactionRecord {
   id: string;
   timestamp: string;
@@ -115,7 +123,7 @@ export default function Transactions() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search ID, card brand or ProductCD..."
+              placeholder="Search ID, card brand or Category..."
               className="pl-9 bg-secondary border-border"
               value={search}
               onChange={(event) => {
@@ -126,14 +134,14 @@ export default function Transactions() {
           </div>
 
           <Select value={productFilter} onValueChange={(value) => { setProductFilter(value); setPage(1); }}>
-            <SelectTrigger className="w-44 bg-secondary border-border">
-              <SelectValue placeholder="ProductCD" />
+            <SelectTrigger className="w-56 bg-secondary border-border">
+              <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All ProductCD</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {productCodes.map((code) => (
                 <SelectItem key={code} value={code}>
-                  {code}
+                  {PRODUCT_LABEL_MAP[code] || code}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -162,7 +170,7 @@ export default function Transactions() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                {["ID", "Timestamp", "Card Brand", "ProductCD", "Amount", "Risk", "Status", "Source"].map((header) => (
+                {["ID", "Timestamp", "Card Brand", "Category", "Amount", "Risk", "Status", "Source"].map((header) => (
                   <th key={header} className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     {header}
                   </th>
@@ -175,7 +183,7 @@ export default function Transactions() {
                   <td className="py-3 px-4 font-mono text-xs text-primary">{transaction.id}</td>
                   <td className="py-3 px-4 text-xs text-muted-foreground">{new Date(transaction.timestamp).toLocaleString()}</td>
                   <td className="py-3 px-4 text-foreground font-medium">{transaction.cardBrand}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{transaction.productCode}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{PRODUCT_LABEL_MAP[transaction.productCode] || transaction.productCode}</td>
                   <td className="py-3 px-4 font-mono text-foreground">${transaction.amount.toLocaleString()}</td>
                   <td className="py-3 px-4">
                     <span className={`font-mono font-semibold ${transaction.riskScore >= 80 ? "text-risk-critical" : transaction.riskScore >= 50 ? "text-risk-high" : "text-risk-low"}`}>
