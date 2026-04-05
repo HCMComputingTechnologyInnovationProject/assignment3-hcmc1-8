@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { NotificationLevel } from "@/lib/notificationStore";
+import ChatWidget from "@/components/ChatWidget";
 
 const SIDEBAR_EXPANDED_W = 240;
 const SIDEBAR_COLLAPSED_W = 64;
@@ -280,6 +281,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </AnimatePresence>
         </main>
       </motion.div>
+
+      {/* Global floating AI chat widget */}
+      <ChatWidget />
     </div>
   );
 }

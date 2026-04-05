@@ -11,7 +11,8 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query, Body
+import requests as http_requests
+from fastapi import FastAPI, Header, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -97,6 +98,17 @@ class PredictionInput(BaseModel):
     transaction_dt: int = Field(..., ge=0, description="Seconds since the dataset reference start time.")
     product_code: str = Field(..., min_length=1, max_length=8)
     model_id: str = Field(default="xgboost", description="The ID of the model to use for prediction.")
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" or "model"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[ChatMessage] = Field(default_factory=list)
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 def ensure_storage() -> None:
@@ -718,6 +730,203 @@ def get_model_comparison() -> list[dict[str, Any]]:
     if not comparison_path.exists():
         return []
     return json.loads(comparison_path.read_text(encoding="utf-8"))
+
+
+_system_prompt_cache: dict[str, Any] = {"prompt": "", "ts": 0.0}
+_PROMPT_CACHE_SECONDS = 300  # 5 minutes
+
+
+def _build_system_prompt() -> str:
+    """Build a compact system prompt with live SentinelAI data. Cached for 5 min to conserve quota."""
+    import time
+    now = time.time()
+    if _system_prompt_cache["prompt"] and now - _system_prompt_cache["ts"] < _PROMPT_CACHE_SECONDS:
+        return _system_prompt_cache["prompt"]
+
+    frame = combined_transactions_frame()
+    ov = dashboard_overview_payload(frame)
+    preds = fetch_persisted_predictions(limit=3)
+    p_rates = product_fraud_rates(frame)
+    p95 = cached_risk_stats.get("amount_p95", 0.0)
+    models_loaded = ", ".join(model_artifacts.keys()) or "none"
+
+    # Top 3 riskiest products
+    top_products = sorted(p_rates.items(), key=lambda x: -x[1])[:3]
+    prod_str = " | ".join(
+        f"{PRODUCT_LABEL_MAP.get(k, k)}:{v*100:.1f}%" for k, v in top_products
+    ) or "N/A"
+
+    # Recent predictions — compact
+    pred_str = " | ".join(
+        f"PRED-{p['id']:04d} ${p['amount']:.0f} {'FRAUD' if p['is_fraud'] else 'OK'} RS={p['risk_score']}"
+        for p in preds
+    ) or "none"
+
+    prompt = (
+        "You are SentinelAI Assistant, a fraud analytics AI. "
+        "Answer in the user's language (Vietnamese or English). Be concise.\n"
+        f"DATA: Volume=${ov['totalVolume']['current']}M | Loss=${ov['fraudLoss']['current']}K | "
+        f"Cases={ov['fraudDetected']['current']} | Rate={ov['fraudRate']['current']}% | "
+        f"AvgTxn=${ov['avgTransaction']['current']} | P95=${p95:.0f}\n"
+        f"MODELS: {models_loaded}\n"
+        f"TOP PRODUCT FRAUD RATES: {prod_str}\n"
+        f"RECENT PREDICTIONS: {pred_str}\n"
+        "RISK SCORE=(prob*100)+8 if amt>=P95,+7 if product_rate>1.5x baseline. "
+        "Fraud>=70,NonFraud<=49,range 1-99."
+    )
+    _system_prompt_cache["prompt"] = prompt
+    _system_prompt_cache["ts"] = now
+    return prompt
+
+
+
+# Models ordered from lightest (most likely free) to heaviest.
+# These are the actual models available on modern Google AI Studio keys.
+_GEMINI_MODEL_CANDIDATES = [
+    "gemini-2.0-flash-lite",   # Lightest 2.0 model — best for free tier
+    "gemini-2.5-flash-lite",   # Lightest 2.5 model
+    "gemini-2.0-flash",        # Standard 2.0
+    "gemini-2.5-flash",        # Standard 2.5 (most capable free model)
+]
+
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
+
+
+def _is_api_key_error(http_status: int, message: str) -> bool:
+    """Return True only when the error is definitively about an invalid/missing API key."""
+    if http_status == 403:
+        return True
+    upper = message.upper()
+    return (
+        "API_KEY_INVALID" in upper
+        or "API KEY NOT VALID" in upper
+        or ("API_KEY" in upper and "INVALID" in upper)
+        or "PERMISSION_DENIED" in upper
+    )
+
+
+def _gemini_rest_call(api_key: str, model: str, system_prompt: str, history: list[dict], message: str) -> str:
+    """Call Gemini generateContent REST API directly — no SDK dependency."""
+    # All versioned models (1.5+, 2.0+, 2.5+, 3.x) support system_instruction.
+    # Only the unversioned base 'gemini-pro' does not.
+    supports_system_instruction = any(
+        v in model for v in ("1.5", "2.0", "2.5", "3.0", "3.1", "flash", "lite")
+    )
+
+    for api_version in ("v1beta", "v1"):
+        url = f"{GEMINI_BASE_URL}/{api_version}/models/{model}:generateContent?key={api_key}"
+
+        if supports_system_instruction:
+            contents = list(history) + [{"role": "user", "parts": [{"text": message}]}]
+            payload: dict[str, Any] = {
+                "system_instruction": {"parts": [{"text": system_prompt}]},
+                "contents": contents,
+                "generationConfig": {"maxOutputTokens": 1500, "temperature": 0.7},
+            }
+        else:
+            # Inject system context into the first user message for older models
+            injected_msg = f"[System context — answer using this data]\n{system_prompt}\n\n[User question]\n{message}"
+            contents = list(history) + [{"role": "user", "parts": [{"text": injected_msg}]}]
+            payload = {
+                "contents": contents,
+                "generationConfig": {"maxOutputTokens": 1500, "temperature": 0.7},
+            }
+
+        resp = http_requests.post(url, json=payload, timeout=30)
+
+        if resp.status_code == 404:
+            continue  # Try next api_version, then next model
+
+        if resp.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit reached. Please wait a moment (free tier: 15 req/min).",
+            )
+
+        if resp.status_code in (400, 403):
+            try:
+                err_body = resp.json()
+                msg = err_body.get("error", {}).get("message", resp.text)
+            except Exception:
+                msg = resp.text
+
+            if _is_api_key_error(resp.status_code, msg):
+                raise HTTPException(status_code=401, detail=f"Invalid Gemini API key: {msg}")
+
+            # Payload / field incompatibility (e.g., unknown system_instruction) — try next
+            continue
+
+        if not resp.ok:
+            continue  # Other server errors — try next version
+
+        data = resp.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError):
+            continue  # Malformed response — try next
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Model '{model}' not available via v1beta or v1 for this API key.",
+    )
+
+
+@app.get("/api/chat/models")
+def list_available_models(x_gemini_key: str | None = Header(default=None)) -> dict[str, Any]:
+    """Debug endpoint: lists Gemini models available for the given API key."""
+    api_key = x_gemini_key or os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="No API key provided.")
+
+    results = {}
+    for version in ("v1beta", "v1"):
+        url = f"{GEMINI_BASE_URL}/{version}/models?key={api_key}"
+        resp = http_requests.get(url, timeout=10)
+        if resp.ok:
+            models = [m["name"] for m in resp.json().get("models", [])]
+            results[version] = models
+        else:
+            results[version] = f"error {resp.status_code}: {resp.text[:200]}"
+    return results
+
+
+@app.post("/api/chat")
+def chat(request: ChatRequest, x_gemini_key: str | None = Header(default=None)) -> dict[str, Any]:
+    api_key = x_gemini_key or os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="No Gemini API key provided. Enter your key in the chat widget."
+        )
+
+    system_prompt = _build_system_prompt()
+    history = [
+        {"role": msg.role, "parts": [{"text": msg.content}]}
+        for msg in request.history
+        if msg.role in ("user", "model")
+    ]
+
+    last_error: str = ""
+    for model in _GEMINI_MODEL_CANDIDATES:
+        try:
+            reply = _gemini_rest_call(api_key, model, system_prompt, history, request.message)
+            return {"reply": reply, "model_used": model}
+        except HTTPException as exc:
+            if exc.status_code in (429, 401, 400):
+                raise  # Don't retry on auth/rate-limit errors
+            last_error = exc.detail
+            continue  # Try next model on 404 / 500
+        except Exception as exc:
+            last_error = str(exc)
+            continue
+
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            f"No Gemini model responded successfully. Last error: {last_error}. "
+            "Try calling GET /api/chat/models (with X-Gemini-Key header) to see available models."
+        )
+    )
 
 
 if __name__ == "__main__":
