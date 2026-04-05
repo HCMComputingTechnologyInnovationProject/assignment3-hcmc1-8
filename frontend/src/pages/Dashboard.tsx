@@ -476,33 +476,6 @@ export default function Dashboard() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1.0 }}
         >
-          <div className="glass-card p-5 border-l-2 border-primary/30">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-risk-high" />
-              About Risk Score
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Risk Score (1-99) combines AI model confidence with business risk rules. It increases if the transaction amount is exceptionally high (top 5%) or the product category has high historical fraud rates.
-            </p>
-          </div>
-          <div className="glass-card p-5 border-l-2 border-primary/30">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              About Feature Importance
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Extracted directly from the AI model (XGBoost/Random Forest), this shows the top technical features contributing to a transaction's fraud classification.
-            </p>
-          </div>
-          <div className="glass-card p-5 border-l-2 border-primary/30">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-risk-low" />
-              About Probability
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              The raw AI confidence score representing the mathematical likelihood (0-100%) that the transaction is fraudulent based on historical training data patterns.
-            </p>
-          </div>
         </motion.div>
       </div>
       </TooltipProvider>

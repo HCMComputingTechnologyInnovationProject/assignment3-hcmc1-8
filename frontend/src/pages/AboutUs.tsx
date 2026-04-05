@@ -88,7 +88,7 @@ export default function AboutUs() {
             </div>
             <div className="flex gap-3 shrink-0">
               <a
-                href="#"
+                href="https://github.com/HCMComputingTechnologyInnovationProject/assignment3-hcmc1-8.git"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2.5 px-5 py-3 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"

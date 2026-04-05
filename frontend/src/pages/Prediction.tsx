@@ -26,6 +26,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchJson } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { addNotification } from "@/lib/notificationStore";
 
 const PRODUCT_LABEL_MAP: Record<string, string> = {
   W: "Web (Online)",
@@ -136,8 +137,9 @@ export default function Prediction() {
       });
 
       const confidence = response.is_fraud === 1 ? response.fraud_probability * 100 : (1 - response.fraud_probability) * 100;
+      const predictionLabel = response.is_fraud === 1 ? "Fraud" : "Not Fraud";
       setResult({
-        prediction: response.is_fraud === 1 ? "Fraud" : "Not Fraud",
+        prediction: predictionLabel,
         confidence,
         riskScore: response.risk_score,
         modelName: response.model_name,
@@ -147,6 +149,17 @@ export default function Prediction() {
           { name: "Normal", value: (1 - response.fraud_probability) * 100 },
         ],
         transaction: response.transaction,
+      });
+
+      // Save prediction result to notification store
+      addNotification({
+        prediction: predictionLabel,
+        riskScore: response.risk_score,
+        confidence,
+        amount: Number(data.amount),
+        productCode: data.productCode,
+        modelName: response.model_name,
+        transactionId: response.transaction.id,
       });
     } catch {
       setError("Could not reach the inference API. Make sure the backend server is running and a trained model exists.");
