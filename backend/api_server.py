@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import joblib
 import numpy as np
 import pandas as pd
 import requests as http_requests
-from fastapi import FastAPI, Header, HTTPException, Query, Body
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -60,6 +61,13 @@ global_historical_frame: pd.DataFrame | None = None
 global_predictions_frame: pd.DataFrame | None = None
 global_combined_frame: pd.DataFrame | None = None
 cached_risk_stats: dict[str, Any] = {}
+_system_prompt_cache: dict[str, Any] = {"prompt": "", "ts": 0.0}
+_PROMPT_CACHE_SECONDS = 300  # 5 minutes
+
+
+def invalidate_system_prompt_cache() -> None:
+    _system_prompt_cache["prompt"] = ""
+    _system_prompt_cache["ts"] = 0.0
 
 
 def build_combined_frame() -> None:
@@ -73,6 +81,7 @@ def build_combined_frame() -> None:
         global_combined_frame = pd.concat([global_historical_frame, global_predictions_frame], ignore_index=True)
 
     refresh_risk_stats(global_combined_frame)
+    invalidate_system_prompt_cache()
 
 
 def refresh_risk_stats(frame: pd.DataFrame) -> None:
@@ -101,8 +110,8 @@ class PredictionInput(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: str  # "user" or "model"
-    content: str
+    role: Literal["user", "model"]
+    content: str = Field(..., min_length=1, max_length=4000)
 
 
 class ChatRequest(BaseModel):
@@ -731,11 +740,6 @@ def get_model_comparison() -> list[dict[str, Any]]:
         return []
     return json.loads(comparison_path.read_text(encoding="utf-8"))
 
-
-_system_prompt_cache: dict[str, Any] = {"prompt": "", "ts": 0.0}
-_PROMPT_CACHE_SECONDS = 300  # 5 minutes
-
-
 def _build_system_prompt() -> str:
     """Build a compact system prompt with live SentinelAI data. Cached for 5 min to conserve quota."""
     import time
@@ -779,6 +783,52 @@ def _build_system_prompt() -> str:
     return prompt
 
 
+def _normalize_chat_history(history: list[ChatMessage]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for message in history:
+        text = message.content.strip()
+        if not text:
+            continue
+        normalized.append(
+            {
+                "role": "user" if message.role == "user" else "model",
+                "parts": [{"text": text}],
+            }
+        )
+    return normalized
+
+
+def _extract_gemini_reply(data: dict[str, Any]) -> str:
+    candidates = data.get("candidates") or []
+    for candidate in candidates:
+        content = candidate.get("content") or {}
+        parts = content.get("parts") or []
+        text_parts = [
+            str(part.get("text", "")).strip()
+            for part in parts
+            if isinstance(part, dict) and str(part.get("text", "")).strip()
+        ]
+        if text_parts:
+            return "\n".join(text_parts)
+
+        finish_reason = str(candidate.get("finishReason", "")).strip()
+        if finish_reason in {"SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "RECITATION"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Gemini blocked the response for safety reasons. Please rephrase your question.",
+            )
+
+    prompt_feedback = data.get("promptFeedback") or {}
+    block_reason = str(prompt_feedback.get("blockReason", "")).strip()
+    if block_reason:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Gemini blocked this prompt ({block_reason}). Please rephrase and try again.",
+        )
+
+    raise HTTPException(status_code=502, detail="Gemini returned an empty response.")
+
+
 
 # Models ordered from lightest (most likely free) to heaviest.
 # These are the actual models available on modern Google AI Studio keys.
@@ -794,15 +844,32 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
 
 def _is_api_key_error(http_status: int, message: str) -> bool:
     """Return True only when the error is definitively about an invalid/missing API key."""
-    if http_status == 403:
-        return True
     upper = message.upper()
     return (
         "API_KEY_INVALID" in upper
         or "API KEY NOT VALID" in upper
         or ("API_KEY" in upper and "INVALID" in upper)
         or "PERMISSION_DENIED" in upper
+        or (http_status == 403 and "API" in upper and "KEY" in upper)
     )
+
+
+def _extract_retry_after_seconds(response: http_requests.Response) -> int | None:
+    """Best-effort parser for Gemini rate-limit cooldown hints."""
+    retry_after = response.headers.get("Retry-After", "").strip()
+    if retry_after.isdigit():
+        return int(retry_after)
+
+    try:
+        message = response.json().get("error", {}).get("message", "")
+    except Exception:
+        message = response.text
+
+    match = re.search(r"try again in\s+([0-9]+(?:\.[0-9]+)?)s", message, re.IGNORECASE)
+    if match:
+        return max(1, round(float(match.group(1))))
+
+    return None
 
 
 def _gemini_rest_call(api_key: str, model: str, system_prompt: str, history: list[dict], message: str) -> str:
@@ -814,14 +881,18 @@ def _gemini_rest_call(api_key: str, model: str, system_prompt: str, history: lis
     )
 
     for api_version in ("v1beta", "v1"):
-        url = f"{GEMINI_BASE_URL}/{api_version}/models/{model}:generateContent?key={api_key}"
+        url = f"{GEMINI_BASE_URL}/{api_version}/models/{model}:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        }
 
         if supports_system_instruction:
             contents = list(history) + [{"role": "user", "parts": [{"text": message}]}]
             payload: dict[str, Any] = {
-                "system_instruction": {"parts": [{"text": system_prompt}]},
+                "system_instruction": {"role": "system", "parts": [{"text": system_prompt}]},
                 "contents": contents,
-                "generationConfig": {"maxOutputTokens": 1500, "temperature": 0.7},
+                "generationConfig": {"maxOutputTokens": 600, "temperature": 0.4},
             }
         else:
             # Inject system context into the first user message for older models
@@ -829,18 +900,25 @@ def _gemini_rest_call(api_key: str, model: str, system_prompt: str, history: lis
             contents = list(history) + [{"role": "user", "parts": [{"text": injected_msg}]}]
             payload = {
                 "contents": contents,
-                "generationConfig": {"maxOutputTokens": 1500, "temperature": 0.7},
+                "generationConfig": {"maxOutputTokens": 600, "temperature": 0.4},
             }
 
-        resp = http_requests.post(url, json=payload, timeout=30)
+        try:
+            resp = http_requests.post(url, json=payload, headers=headers, timeout=30)
+        except http_requests.RequestException as exc:
+            raise HTTPException(status_code=503, detail=f"Could not reach Gemini API: {exc}") from exc
 
         if resp.status_code == 404:
             continue  # Try next api_version, then next model
 
         if resp.status_code == 429:
+            retry_after_seconds = _extract_retry_after_seconds(resp)
+            detail = "Rate limit reached. Please wait a moment (free tier)."
+            if retry_after_seconds is not None:
+                detail = f"Rate limit reached. Retry after about {retry_after_seconds}s (free tier)."
             raise HTTPException(
                 status_code=429,
-                detail="Rate limit reached. Please wait a moment (free tier: 15 req/min).",
+                detail=detail,
             )
 
         if resp.status_code in (400, 403):
@@ -860,10 +938,7 @@ def _gemini_rest_call(api_key: str, model: str, system_prompt: str, history: lis
             continue  # Other server errors — try next version
 
         data = resp.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError):
-            continue  # Malformed response — try next
+        return _extract_gemini_reply(data)
 
     raise HTTPException(
         status_code=404,
@@ -881,12 +956,15 @@ def list_available_models(x_gemini_key: str | None = Header(default=None)) -> di
     results = {}
     for version in ("v1beta", "v1"):
         url = f"{GEMINI_BASE_URL}/{version}/models?key={api_key}"
-        resp = http_requests.get(url, timeout=10)
-        if resp.ok:
-            models = [m["name"] for m in resp.json().get("models", [])]
-            results[version] = models
-        else:
-            results[version] = f"error {resp.status_code}: {resp.text[:200]}"
+        try:
+            resp = http_requests.get(url, timeout=10)
+            if resp.ok:
+                models = [m["name"] for m in resp.json().get("models", [])]
+                results[version] = models
+            else:
+                results[version] = f"error {resp.status_code}: {resp.text[:200]}"
+        except http_requests.RequestException as exc:
+            results[version] = f"request error: {exc}"
     return results
 
 
@@ -900,25 +978,42 @@ def chat(request: ChatRequest, x_gemini_key: str | None = Header(default=None)) 
         )
 
     system_prompt = _build_system_prompt()
-    history = [
-        {"role": msg.role, "parts": [{"text": msg.content}]}
-        for msg in request.history
-        if msg.role in ("user", "model")
-    ]
+    history = _normalize_chat_history(request.history)
 
     last_error: str = ""
+    rate_limit_errors: list[str] = []
+    auth_error: HTTPException | None = None
+    client_error: HTTPException | None = None
     for model in _GEMINI_MODEL_CANDIDATES:
         try:
             reply = _gemini_rest_call(api_key, model, system_prompt, history, request.message)
             return {"reply": reply, "model_used": model}
         except HTTPException as exc:
-            if exc.status_code in (429, 401, 400):
-                raise  # Don't retry on auth/rate-limit errors
+            if exc.status_code == 401:
+                auth_error = exc
+                break
+            if exc.status_code == 400:
+                client_error = exc
+                last_error = str(exc.detail)
+                continue
+            if exc.status_code == 429:
+                rate_limit_errors.append(str(exc.detail))
+                last_error = str(exc.detail)
+                continue
             last_error = exc.detail
             continue  # Try next model on 404 / 500
         except Exception as exc:
             last_error = str(exc)
             continue
+
+    if auth_error is not None:
+        raise auth_error
+
+    if client_error is not None and not rate_limit_errors:
+        raise client_error
+
+    if rate_limit_errors:
+        raise HTTPException(status_code=429, detail=rate_limit_errors[-1])
 
     raise HTTPException(
         status_code=503,

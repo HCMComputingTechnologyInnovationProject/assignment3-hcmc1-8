@@ -131,7 +131,7 @@ function ApiKeyForm({
         )}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Saved in browser localStorage · Never sent anywhere except Gemini API
+        Saved in browser localStorage. The key is only sent to your SentinelAI backend when you chat.
       </p>
     </div>
   );
@@ -149,10 +149,11 @@ export default function ChatWidget() {
 
   const hasApiKey = storedKey.length > 0 && !editingKey;
 
-  const { messages, loading, sendMessage, clearChat } = useChat();
+  const { messages, loading, cooldownSeconds, sendMessage, clearChat } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isFirstOpen = messages.length === 0;
+  const sendDisabled = loading || cooldownSeconds > 0;
 
   useEffect(() => {
     if (open && hasApiKey) {
@@ -171,11 +172,12 @@ export default function ChatWidget() {
       localStorage.setItem("sentinel_gemini_key", key);
       setStoredKey(key);
       setEditingKey(false);
+      clearChat();
     } catch { /* noop */ }
   };
 
   const handleSend = () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || sendDisabled) return;
     sendMessage(input);
     setInput("");
   };
@@ -234,7 +236,7 @@ export default function ChatWidget() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-foreground">SentinelAI Assistant</p>
-                  <p className="text-[10px] text-muted-foreground">Gemini 1.5 Flash · Fraud Analytics AI</p>
+                  <p className="text-[10px] text-muted-foreground">Gemini Flash API · Fraud Analytics AI</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -290,8 +292,8 @@ export default function ChatWidget() {
                         <Bot className="w-3.5 h-3.5 text-primary" />
                       </div>
                       <div className="max-w-[82%] px-4 py-2.5 text-sm leading-relaxed rounded-2xl rounded-bl-sm bg-card border border-border text-foreground">
-                        <p>Xin chào! Tôi là <strong>SentinelAI Assistant</strong> 👋</p>
-                        <p className="mt-1">Tôi có thể giúp bạn phân tích dữ liệu fraud, giải thích kết quả prediction, hay trả lời câu hỏi về ML.</p>
+                        <p>Xin chào! Tôi là <strong>SentinelAI Assistant</strong>.</p>
+                        <p className="mt-1">Tôi có thể giúp bạn phân tích dữ liệu fraud, giải thích kết quả prediction và trả lời câu hỏi về ML.</p>
                       </div>
                     </div>
                   )}
@@ -305,12 +307,13 @@ export default function ChatWidget() {
                 </div>
 
                 {/* Quick suggestions */}
-                {isFirstOpen && !loading && (
+                {isFirstOpen && !sendDisabled && (
                   <div className="px-4 pb-3 flex flex-wrap gap-1.5 shrink-0">
                     {SUGGESTED_QUESTIONS.map((q) => (
                       <button
                         key={q}
                         onClick={() => sendMessage(q)}
+                        disabled={sendDisabled}
                         className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors bg-secondary/50"
                       >
                         {q}
@@ -321,21 +324,26 @@ export default function ChatWidget() {
 
                 {/* Input area */}
                 <div className="px-4 py-3 border-t border-border bg-secondary/10 shrink-0">
+                  {cooldownSeconds > 0 && (
+                    <p className="mb-2 rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                      Gemini free tier is cooling down. Please wait about {cooldownSeconds}s before sending the next message.
+                    </p>
+                  )}
                   <div className="flex items-end gap-2">
                     <textarea
                       ref={inputRef}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Hỏi về fraud data, predictions, models..."
+                      placeholder={cooldownSeconds > 0 ? `Please wait ${cooldownSeconds}s before sending again...` : "Ask about fraud data, predictions, models..."}
                       rows={1}
-                      disabled={loading}
+                      disabled={sendDisabled}
                       className="flex-1 resize-none bg-secondary border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 max-h-28 overflow-y-auto custom-scrollbar"
                       style={{ lineHeight: "1.5" }}
                     />
                     <button
                       onClick={handleSend}
-                      disabled={!input.trim() || loading}
+                      disabled={!input.trim() || sendDisabled}
                       className="shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 hover:bg-primary/90 transition-colors"
                     >
                       <Send className="w-4 h-4" />
