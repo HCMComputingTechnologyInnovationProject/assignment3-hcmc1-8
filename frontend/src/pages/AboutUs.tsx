@@ -22,7 +22,7 @@ const teamMembers = [
     avatar: "/images/nam.jpg",
     topColor: "bg-[hsl(45,93%,47%)]",
     responsibilityIcon: Cpu,
-    responsibilities: "ML Implementation (Logistic Regression/GRU), Model Evaluation, Backend, AI Integration",
+    responsibilities: "ML Implementation (Logistic Regression/Random Forest), Model Evaluation, Backend, AI Integration",
   },
   {
     name: "Nguyen Hai Dang",
@@ -42,7 +42,7 @@ const teamMembers = [
     avatar: "/images/cuong.jpg",
     topColor: "bg-[hsl(270,60%,55%)]",
     responsibilityIcon: Cpu,
-    responsibilities: "ML Implementation (Isolation Forest/XGBoost), Backend Support",
+    responsibilities: "ML Implementation (Isolation Forest/XG Boost), Backend Support",
   },
 ];
 

@@ -449,24 +449,63 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div 
-          className="glass-card p-6 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5 text-primary" />
-            <h2 className="text-base font-bold text-foreground tracking-tight">Backend-Derived Insights</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {insights.length === 0 && <p className="text-sm text-muted-foreground">No insight records are available yet.</p>}
-            {insights.map((insight) => (
-              <div key={insight.id} className="p-4 rounded-xl bg-secondary/30 border border-border/50">
-                <p className="text-sm font-semibold text-foreground">{insight.title}</p>
-                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{insight.description}</p>
-                <p className="text-[11px] uppercase tracking-wide mt-3 text-primary font-medium">{insight.severity}</p>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+          <div className="flex items-center justify-between mb-6 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-primary/10 rounded-xl">
+                <AlertTriangle className="w-5 h-5 text-primary" />
               </div>
-            ))}
+              <div>
+                <h2 className="text-lg font-bold text-foreground tracking-tight">Backend-Derived Insights</h2>
+                <p className="text-[13px] text-muted-foreground mt-0.5">Automated detection rules and systemic observations</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative z-10">
+            {insights.length === 0 && (
+              <p className="text-[13px] text-muted-foreground col-span-full py-10 text-center bg-secondary/20 rounded-xl border border-dashed border-border/60">
+                No insight records are available yet. Check back later or ensure the backend is running.
+              </p>
+            )}
+            {insights.map((insight) => {
+              let colorClasses = { border: 'border-border/50', text: 'text-primary', badgeBg: 'bg-primary/10', glowBg: 'bg-primary', lightBg: 'bg-primary/5' };
+              if (insight.severity === 'critical') colorClasses = { border: 'border-[#ef4444]/30', text: 'text-[#ef4444]', badgeBg: 'bg-[#ef4444]/10', glowBg: 'bg-[#ef4444]', lightBg: 'bg-[#ef4444]/5' };
+              else if (insight.severity === 'high') colorClasses = { border: 'border-[#f97316]/30', text: 'text-[#f97316]', badgeBg: 'bg-[#f97316]/10', glowBg: 'bg-[#f97316]', lightBg: 'bg-[#f97316]/5' };
+              else if (insight.severity === 'medium') colorClasses = { border: 'border-[#eab308]/30', text: 'text-[#eab308]', badgeBg: 'bg-[#eab308]/10', glowBg: 'bg-[#eab308]', lightBg: 'bg-[#eab308]/5' };
+              else if (insight.severity === 'low') colorClasses = { border: 'border-[#3b82f6]/30', text: 'text-[#3b82f6]', badgeBg: 'bg-[#3b82f6]/10', glowBg: 'bg-[#3b82f6]', lightBg: 'bg-[#3b82f6]/5' };
+
+              return (
+                <motion.div 
+                  key={insight.id} 
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className={`p-5 rounded-2xl bg-gradient-to-br from-background to-secondary/20 border ${colorClasses.border} shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col justify-between`}
+                >
+                  <div className={`absolute top-0 right-0 w-24 h-24 ${colorClasses.glowBg} rounded-full blur-[40px] -mr-8 -mt-8 transition-opacity opacity-[0.15] group-hover:opacity-[0.25] pointer-events-none`} />
+                  <div className={`absolute bottom-0 left-0 w-full h-1 ${colorClasses.glowBg} opacity-80`} />
+                  
+                  <div className="relative z-10 flex-1">
+                    <p className="text-[15px] font-semibold text-foreground leading-snug tracking-tight">{insight.title}</p>
+                    <p className="text-[12px] text-muted-foreground mt-2.5 leading-relaxed">{insight.description}</p>
+                  </div>
+                  
+                  <div className="mt-5 pt-4 border-t border-border/30 flex items-center justify-between relative z-10">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${colorClasses.badgeBg} ${colorClasses.text}`}>
+                      {insight.severity} Priority
+                    </span>
+                    <div className="flex items-center gap-1.5 opacity-60">
+                      <div className={`w-1.5 h-1.5 rounded-full ${colorClasses.glowBg} animate-pulse`} />
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Active</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
 
