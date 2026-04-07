@@ -4,10 +4,10 @@ import { Bot, Key, MessageSquare, Send, Trash2, X } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
 
 const SUGGESTED_QUESTIONS = [
-  "Fraud rate hiện tại như thế nào?",
-  "Tại sao risk score lại cao?",
-  "So sánh XGBoost và Random Forest?",
-  "Giao dịch nào nguy hiểm nhất?",
+  "What is the current fraud rate?",
+  "Why is the risk score high?",
+  "How do XGBoost and Random Forest compare?",
+  "Which transactions are the riskiest?",
 ];
 
 function TypingIndicator() {
@@ -292,8 +292,8 @@ export default function ChatWidget() {
                         <Bot className="w-3.5 h-3.5 text-primary" />
                       </div>
                       <div className="max-w-[82%] px-4 py-2.5 text-sm leading-relaxed rounded-2xl rounded-bl-sm bg-card border border-border text-foreground">
-                        <p>Xin chào! Tôi là <strong>SentinelAI Assistant</strong>.</p>
-                        <p className="mt-1">Tôi có thể giúp bạn phân tích dữ liệu fraud, giải thích kết quả prediction và trả lời câu hỏi về ML.</p>
+                        <p>Hello! I am a <strong>SentinelAI Assistant</strong>.</p>
+                        <p className="mt-1">I can help you analyze fraud data, explain prediction results, and answer questions about ML.</p>
                       </div>
                     </div>
                   )}
@@ -335,7 +335,7 @@ export default function ChatWidget() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={cooldownSeconds > 0 ? `Please wait ${cooldownSeconds}s before sending again...` : "Ask about fraud data, predictions, models..."}
+                      placeholder={cooldownSeconds > 0 ? `Please wait ${cooldownSeconds}s before sending again...` : "Ask something..."}
                       rows={1}
                       disabled={sendDisabled}
                       className="flex-1 resize-none bg-secondary border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 max-h-28 overflow-y-auto custom-scrollbar"
@@ -350,7 +350,7 @@ export default function ChatWidget() {
                     </button>
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
-                    Enter để gửi · Shift+Enter xuống dòng
+                    Press Enter to send · Shift+Enter for a new line
                   </p>
                 </div>
               </>

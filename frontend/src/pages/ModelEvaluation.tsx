@@ -131,7 +131,7 @@ export default function ModelEvaluation() {
           </div>
           <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-lg font-medium">
             <Brain className="w-5 h-5" />
-            <span>Best F1 model: {bestModel}</span>
+            <span>Best model: {bestModel}</span>
           </div>
         </div>
 
