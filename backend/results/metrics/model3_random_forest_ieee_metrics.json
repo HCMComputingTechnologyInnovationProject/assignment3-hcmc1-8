@@ -1,0 +1,109 @@
+{
+  "name": "Random Forest",
+  "model_key": "random_forest",
+  "dataset": "IEEE",
+  "dataset_description": "IEEE-CIS Fraud Detection Dataset",
+  "artifact": "random_forest_ieee.pkl",
+  "accuracy": 0.8226469876602952,
+  "precision": 0.8497246262785209,
+  "recall": 0.7839341882409872,
+  "f1_score": 0.8155046564309086,
+  "auc_roc": 0.8997466234164548,
+  "confusion_matrix": {
+    "true_negative": 3560,
+    "false_positive": 573,
+    "false_negative": 893,
+    "true_positive": 3240
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.7994610375028071,
+      "recall": 0.8613597870796031,
+      "f1-score": 0.8292569298858607,
+      "support": 4133.0
+    },
+    "1": {
+      "precision": 0.8497246262785209,
+      "recall": 0.7839341882409872,
+      "f1-score": 0.8155046564309086,
+      "support": 4133.0
+    },
+    "accuracy": 0.8226469876602952,
+    "macro avg": {
+      "precision": 0.8245928318906639,
+      "recall": 0.8226469876602951,
+      "f1-score": 0.8223807931583846,
+      "support": 8266.0
+    },
+    "weighted avg": {
+      "precision": 0.824592831890664,
+      "recall": 0.8226469876602952,
+      "f1-score": 0.8223807931583846,
+      "support": 8266.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/IEEE_balanced.csv",
+    "total_samples": 41326,
+    "train_rows": 33060,
+    "test_rows": 8266,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 433,
+    "dropped_columns": [
+      "TransactionID",
+      "V305"
+    ]
+  },
+  "feature_importance": [
+    {
+      "name": "C13",
+      "value": 16.92
+    },
+    {
+      "name": "C14",
+      "value": 13.08
+    },
+    {
+      "name": "V317",
+      "value": 10.7
+    },
+    {
+      "name": "V90",
+      "value": 10.28
+    },
+    {
+      "name": "V258",
+      "value": 9.25
+    },
+    {
+      "name": "V265",
+      "value": 8.52
+    },
+    {
+      "name": "C1",
+      "value": 8.14
+    },
+    {
+      "name": "C8",
+      "value": 8.0
+    },
+    {
+      "name": "TransactionAmt",
+      "value": 7.64
+    },
+    {
+      "name": "V308",
+      "value": 7.46
+    }
+  ],
+  "supports_probability": true,
+  "overfitting": {
+    "train_accuracy": 0.8816696914700545,
+    "test_accuracy": 0.8226469876602952,
+    "train_auc": 0.9492129984932707,
+    "test_auc": 0.8997466234164548
+  }
+}

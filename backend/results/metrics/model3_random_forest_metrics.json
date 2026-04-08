@@ -2,73 +2,120 @@
   "name": "Random Forest",
   "model_key": "random_forest",
   "artifact": "model3_random_forest.pkl",
-  "accuracy": 0.8795,
-  "precision": 0.11138411138411139,
-  "recall": 0.53125,
-  "f1_score": 0.18415707515233581,
+  "accuracy": 0.9265429201374404,
+  "precision": 0.9423791969674014,
+  "recall": 0.9065196693502354,
+  "f1_score": 0.923860220577868,
+  "auc_roc": 0.9614111390501853,
   "confusion_matrix": {
-    "true_negative": 17318,
-    "false_positive": 2170,
-    "false_negative": 240,
-    "true_positive": 272
+    "true_negative": 93,
+    "false_positive": 2,
+    "false_negative": 6,
+    "true_positive": 89
   },
   "classification_report": {
     "0": {
-      "precision": 0.9863310172001367,
-      "recall": 0.8886494252873564,
-      "f1-score": 0.9349457431301625,
-      "support": 19488.0
+      "precision": 0.9393939393939394,
+      "recall": 0.9789473684210527,
+      "f1-score": 0.9587628865979382,
+      "support": 95.0
     },
     "1": {
-      "precision": 0.11138411138411139,
-      "recall": 0.53125,
-      "f1-score": 0.18415707515233581,
-      "support": 512.0
+      "precision": 0.978021978021978,
+      "recall": 0.9368421052631579,
+      "f1-score": 0.956989247311828,
+      "support": 95.0
     },
-    "accuracy": 0.8795,
+    "accuracy": 0.9578947368421052,
     "macro avg": {
-      "precision": 0.5488575642921241,
-      "recall": 0.7099497126436782,
-      "f1-score": 0.5595514091412492,
-      "support": 20000.0
+      "precision": 0.9587079587079588,
+      "recall": 0.9578947368421054,
+      "f1-score": 0.9578760669548831,
+      "support": 190.0
     },
     "weighted avg": {
-      "precision": 0.9639323764112465,
-      "recall": 0.8795,
-      "f1-score": 0.9157255532299301,
-      "support": 20000.0
+      "precision": 0.9587079587079588,
+      "recall": 0.9578947368421052,
+      "f1-score": 0.957876066954883,
+      "support": 190.0
     }
   },
   "split": {
-    "dataset_path": "backend/data/raw/train_transaction.csv",
-    "feature_columns": [
-      "TransactionAmt",
-      "TransactionDT",
-      "ProductCD"
+    "datasets_used": [
+      "ULB",
+      "IEEE",
+      "PaySim"
     ],
-    "target_column": "isFraud",
-    "sample_rows_loaded": 100000,
-    "train_rows": 80000,
-    "test_rows": 20000,
+    "total_samples": 58698,
+    "train_rows": 46956,
+    "test_rows": 11742,
     "test_size": 0.2,
-    "random_state": 42,
-    "fraud_rate_train": 0.0256125,
-    "fraud_rate_test": 0.0256
+    "random_state": 42
+  },
+  "per_dataset": {
+    "ULB": {
+      "accuracy": 0.9578947368421052,
+      "precision": 0.978021978021978,
+      "recall": 0.9368421052631579,
+      "f1_score": 0.956989247311828,
+      "auc_roc": 0.9844875346260388
+    },
+    "IEEE": {
+      "accuracy": 0.8226469876602952,
+      "precision": 0.8497246262785209,
+      "recall": 0.7839341882409872,
+      "f1_score": 0.8155046564309086,
+      "auc_roc": 0.8997466234164548
+    },
+    "PaySim": {
+      "accuracy": 0.9990870359099209,
+      "precision": 0.9993909866017052,
+      "recall": 0.9987827145465612,
+      "f1_score": 0.9990867579908675,
+      "auc_roc": 0.9999992591080624
+    }
   },
   "feature_importance": [
     {
-      "name": "TransactionDT",
-      "value": 37.36
+      "name": "V14",
+      "value": 23.03
     },
     {
-      "name": "TransactionAmt",
-      "value": 35.7
+      "name": "V10",
+      "value": 14.26
     },
     {
-      "name": "ProductCD",
-      "value": 26.94
+      "name": "V12",
+      "value": 12.15
+    },
+    {
+      "name": "V11",
+      "value": 11.43
+    },
+    {
+      "name": "V17",
+      "value": 11.29
+    },
+    {
+      "name": "V4",
+      "value": 9.73
+    },
+    {
+      "name": "V3",
+      "value": 6.62
+    },
+    {
+      "name": "V7",
+      "value": 4.66
+    },
+    {
+      "name": "V16",
+      "value": 4.49
+    },
+    {
+      "name": "V9",
+      "value": 2.34
     }
   ],
-  "supports_probability": true,
-  "auc_roc": 0.8005145093294592
+  "supports_probability": true
 }

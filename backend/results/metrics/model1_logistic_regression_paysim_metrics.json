@@ -1,0 +1,102 @@
+{
+  "name": "Logistic Regression",
+  "model_key": "logistic_regression",
+  "dataset": "PaySim",
+  "dataset_description": "PaySim Mobile Money Fraud Dataset",
+  "artifact": "logistic_regression_paysim.pkl",
+  "accuracy": 0.9211807668898356,
+  "precision": 0.963186077643909,
+  "recall": 0.8758368837492392,
+  "f1_score": 0.917437041759643,
+  "auc_roc": 0.9716364339537438,
+  "confusion_matrix": {
+    "true_negative": 1588,
+    "false_positive": 55,
+    "false_negative": 204,
+    "true_positive": 1439
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.8861607142857143,
+      "recall": 0.9665246500304321,
+      "f1-score": 0.9245997088791849,
+      "support": 1643.0
+    },
+    "1": {
+      "precision": 0.963186077643909,
+      "recall": 0.8758368837492392,
+      "f1-score": 0.917437041759643,
+      "support": 1643.0
+    },
+    "accuracy": 0.9211807668898356,
+    "macro avg": {
+      "precision": 0.9246733959648117,
+      "recall": 0.9211807668898356,
+      "f1-score": 0.9210183753194139,
+      "support": 3286.0
+    },
+    "weighted avg": {
+      "precision": 0.9246733959648117,
+      "recall": 0.9211807668898356,
+      "f1-score": 0.9210183753194139,
+      "support": 3286.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/PaySim_balanced.csv",
+    "total_samples": 16426,
+    "train_rows": 13140,
+    "test_rows": 3286,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 11,
+    "dropped_columns": [
+      "isFlaggedFraud"
+    ]
+  },
+  "feature_importance": [
+    {
+      "name": "balance_diff",
+      "value": 39.22
+    },
+    {
+      "name": "oldbalanceOrg",
+      "value": 13.56
+    },
+    {
+      "name": "newbalanceDest",
+      "value": 13.38
+    },
+    {
+      "name": "oldbalanceDest",
+      "value": 12.05
+    },
+    {
+      "name": "newbalanceOrig",
+      "value": 11.81
+    },
+    {
+      "name": "amount_ratio",
+      "value": 5.87
+    },
+    {
+      "name": "hour",
+      "value": 1.36
+    },
+    {
+      "name": "step",
+      "value": 1.18
+    },
+    {
+      "name": "amount",
+      "value": 0.88
+    },
+    {
+      "name": "type",
+      "value": 0.69
+    }
+  ],
+  "supports_probability": true
+}

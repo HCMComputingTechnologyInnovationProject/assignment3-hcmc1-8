@@ -17,8 +17,11 @@ import {
   ShieldAlert,
   Sun,
   Users,
+  Menu,
+  X,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,6 +52,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const maxVisibleNotifications = 5;
   const location = useLocation();
   const { theme, toggle } = useTheme();
+  const isMobile = useIsMobile();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications } = useNotifications();
@@ -83,21 +88,43 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close mobile menu on path change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="flex min-h-screen bg-background">
+      {/* ── Mobile Overlay ── */}
+      <AnimatePresence>
+        {isMobile && mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Sidebar ── */}
       <motion.aside
-        animate={{ width: sidebarWidth }}
+        initial={false}
+        animate={{ 
+          width: isMobile ? SIDEBAR_EXPANDED_W : sidebarWidth,
+          x: isMobile ? (mobileMenuOpen ? 0 : -SIDEBAR_EXPANDED_W) : 0
+        }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-        className="fixed inset-y-0 left-0 z-30 flex flex-col bg-card border-r border-border overflow-hidden shrink-0"
-        style={{ width: sidebarWidth }}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-card border-r border-border overflow-hidden shrink-0 ${isMobile ? "shadow-2xl" : ""}`}
+        style={{ width: isMobile ? SIDEBAR_EXPANDED_W : sidebarWidth }}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-border shrink-0 overflow-hidden">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-border shrink-0 overflow-hidden">
           <Link to="/dashboard" className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
             <Shield className="h-7 w-7 text-primary shrink-0" />
             <AnimatePresence>
-              {!collapsed && (
+              {(!collapsed || isMobile) && (
                 <motion.span
                   key="logo-text"
                   initial={{ opacity: 0, x: -8 }}
@@ -111,6 +138,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               )}
             </AnimatePresence>
           </Link>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="shrink-0 -mr-2">
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
 
         {/* Nav items */}
@@ -140,7 +172,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
 
                 <AnimatePresence>
-                  {!collapsed && (
+                  {(!collapsed || isMobile) && (
                     <motion.span
                       key={`label-${item.path}`}
                       initial={{ opacity: 0, x: -6 }}
@@ -155,7 +187,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </AnimatePresence>
 
                 {/* Tooltip khi collapsed */}
-                {collapsed && (
+                {collapsed && !isMobile && (
                   <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 rounded-md bg-popover border border-border text-xs font-medium text-popover-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-50">
                     {item.label}
                   </span>
@@ -166,38 +198,42 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Toggle button */}
-        <div className="p-3 border-t border-border shrink-0">
-          <button
-            onClick={toggleSidebar}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            ) : (
-              <>
-                <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span className="whitespace-nowrap text-xs">Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
+        {!isMobile && (
+          <div className="p-3 border-t border-border shrink-0">
+            <button
+              onClick={toggleSidebar}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium"
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4 shrink-0" />
+              ) : (
+                <>
+                  <ChevronLeft className="h-4 w-4 shrink-0" />
+                  <span className="whitespace-nowrap text-xs">Collapse</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </motion.aside>
 
       {/* ── Main wrapper (shifts right as sidebar animates) ── */}
       <motion.div
-        animate={{ marginLeft: sidebarWidth }}
+        animate={{ marginLeft: isMobile ? 0 : sidebarWidth }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
         className="flex flex-col flex-1 min-w-0"
-        style={{ marginLeft: sidebarWidth }}
+        style={{ marginLeft: isMobile ? 0 : sidebarWidth }}
       >
         {/* Top header */}
-        <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-6 bg-card/80 backdrop-blur-md border-b border-border">
-          <div className="relative w-64 hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search..." className="pl-9 bg-secondary border-border" />
+        <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-4 md:px-6 bg-card/80 backdrop-blur-md border-b border-border">
+          <div className="flex items-center gap-3">
+            {isMobile && (
+              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+                <Menu className="h-5 w-5" />
+              </Button>
+            )}
           </div>
-
           <div className="flex items-center gap-2 ml-auto">
             <Button variant="ghost" size="icon" onClick={toggle} title="Toggle theme">
               {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}

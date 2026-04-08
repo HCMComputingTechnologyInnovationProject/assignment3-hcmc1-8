@@ -1,0 +1,100 @@
+{
+  "name": "Logistic Regression",
+  "model_key": "logistic_regression",
+  "dataset": "ULB",
+  "dataset_description": "ULB Credit Card Fraud Dataset",
+  "artifact": "logistic_regression_ulb.pkl",
+  "accuracy": 0.9578947368421052,
+  "precision": 0.9887640449438202,
+  "recall": 0.9263157894736842,
+  "f1_score": 0.9565217391304348,
+  "auc_roc": 0.9871468144044322,
+  "confusion_matrix": {
+    "true_negative": 94,
+    "false_positive": 1,
+    "false_negative": 7,
+    "true_positive": 88
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9306930693069307,
+      "recall": 0.9894736842105263,
+      "f1-score": 0.9591836734693877,
+      "support": 95.0
+    },
+    "1": {
+      "precision": 0.9887640449438202,
+      "recall": 0.9263157894736842,
+      "f1-score": 0.9565217391304348,
+      "support": 95.0
+    },
+    "accuracy": 0.9578947368421052,
+    "macro avg": {
+      "precision": 0.9597285571253755,
+      "recall": 0.9578947368421052,
+      "f1-score": 0.9578527062999113,
+      "support": 190.0
+    },
+    "weighted avg": {
+      "precision": 0.9597285571253755,
+      "recall": 0.9578947368421052,
+      "f1-score": 0.9578527062999113,
+      "support": 190.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/ULB_balanced.csv",
+    "total_samples": 946,
+    "train_rows": 756,
+    "test_rows": 190,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 32,
+    "dropped_columns": []
+  },
+  "feature_importance": [
+    {
+      "name": "V14",
+      "value": 20.37
+    },
+    {
+      "name": "V12",
+      "value": 14.5
+    },
+    {
+      "name": "V4",
+      "value": 13.62
+    },
+    {
+      "name": "V10",
+      "value": 9.75
+    },
+    {
+      "name": "V5",
+      "value": 8.0
+    },
+    {
+      "name": "V8",
+      "value": 7.47
+    },
+    {
+      "name": "V3",
+      "value": 7.27
+    },
+    {
+      "name": "V22",
+      "value": 6.86
+    },
+    {
+      "name": "V11",
+      "value": 6.3
+    },
+    {
+      "name": "Amount",
+      "value": 5.85
+    }
+  ],
+  "supports_probability": true
+}

@@ -1,0 +1,103 @@
+{
+  "name": "Logistic Regression",
+  "model_key": "logistic_regression",
+  "dataset": "IEEE",
+  "dataset_description": "IEEE-CIS Fraud Detection Dataset",
+  "artifact": "logistic_regression_ieee.pkl",
+  "accuracy": 0.7868376481974353,
+  "precision": 0.8115637319316689,
+  "recall": 0.7471570287926446,
+  "f1_score": 0.7780297304106828,
+  "auc_roc": 0.8637923919584298,
+  "confusion_matrix": {
+    "true_negative": 3416,
+    "false_positive": 717,
+    "false_negative": 1045,
+    "true_positive": 3088
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.7657475902264066,
+      "recall": 0.826518267602226,
+      "f1-score": 0.7949732371421923,
+      "support": 4133.0
+    },
+    "1": {
+      "precision": 0.8115637319316689,
+      "recall": 0.7471570287926446,
+      "f1-score": 0.7780297304106828,
+      "support": 4133.0
+    },
+    "accuracy": 0.7868376481974353,
+    "macro avg": {
+      "precision": 0.7886556610790377,
+      "recall": 0.7868376481974353,
+      "f1-score": 0.7865014837764375,
+      "support": 8266.0
+    },
+    "weighted avg": {
+      "precision": 0.7886556610790377,
+      "recall": 0.7868376481974353,
+      "f1-score": 0.7865014837764375,
+      "support": 8266.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/IEEE_balanced.csv",
+    "total_samples": 41326,
+    "train_rows": 33060,
+    "test_rows": 8266,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 433,
+    "dropped_columns": [
+      "TransactionID",
+      "V305"
+    ]
+  },
+  "feature_importance": [
+    {
+      "name": "C14",
+      "value": 21.44
+    },
+    {
+      "name": "C11",
+      "value": 20.37
+    },
+    {
+      "name": "C7",
+      "value": 10.55
+    },
+    {
+      "name": "C8",
+      "value": 9.93
+    },
+    {
+      "name": "V18",
+      "value": 7.03
+    },
+    {
+      "name": "V336",
+      "value": 6.62
+    },
+    {
+      "name": "id_29",
+      "value": 6.52
+    },
+    {
+      "name": "id_15",
+      "value": 6.09
+    },
+    {
+      "name": "V182",
+      "value": 5.85
+    },
+    {
+      "name": "C4",
+      "value": 5.6
+    }
+  ],
+  "supports_probability": true
+}

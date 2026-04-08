@@ -1,0 +1,106 @@
+{
+  "name": "Random Forest",
+  "model_key": "random_forest",
+  "dataset": "ULB",
+  "dataset_description": "ULB Credit Card Fraud Dataset",
+  "artifact": "random_forest_ulb.pkl",
+  "accuracy": 0.9578947368421052,
+  "precision": 0.978021978021978,
+  "recall": 0.9368421052631579,
+  "f1_score": 0.956989247311828,
+  "auc_roc": 0.9844875346260388,
+  "confusion_matrix": {
+    "true_negative": 93,
+    "false_positive": 2,
+    "false_negative": 6,
+    "true_positive": 89
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9393939393939394,
+      "recall": 0.9789473684210527,
+      "f1-score": 0.9587628865979382,
+      "support": 95.0
+    },
+    "1": {
+      "precision": 0.978021978021978,
+      "recall": 0.9368421052631579,
+      "f1-score": 0.956989247311828,
+      "support": 95.0
+    },
+    "accuracy": 0.9578947368421052,
+    "macro avg": {
+      "precision": 0.9587079587079588,
+      "recall": 0.9578947368421054,
+      "f1-score": 0.9578760669548831,
+      "support": 190.0
+    },
+    "weighted avg": {
+      "precision": 0.9587079587079588,
+      "recall": 0.9578947368421052,
+      "f1-score": 0.957876066954883,
+      "support": 190.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/ULB_balanced.csv",
+    "total_samples": 946,
+    "train_rows": 756,
+    "test_rows": 190,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 32,
+    "dropped_columns": []
+  },
+  "feature_importance": [
+    {
+      "name": "V14",
+      "value": 23.03
+    },
+    {
+      "name": "V10",
+      "value": 14.26
+    },
+    {
+      "name": "V12",
+      "value": 12.15
+    },
+    {
+      "name": "V11",
+      "value": 11.43
+    },
+    {
+      "name": "V17",
+      "value": 11.29
+    },
+    {
+      "name": "V4",
+      "value": 9.73
+    },
+    {
+      "name": "V3",
+      "value": 6.62
+    },
+    {
+      "name": "V7",
+      "value": 4.66
+    },
+    {
+      "name": "V16",
+      "value": 4.49
+    },
+    {
+      "name": "V9",
+      "value": 2.34
+    }
+  ],
+  "supports_probability": true,
+  "overfitting": {
+    "train_accuracy": 0.9920634920634921,
+    "test_accuracy": 0.9578947368421052,
+    "train_auc": 0.9999370118417737,
+    "test_auc": 0.9844875346260388
+  }
+}

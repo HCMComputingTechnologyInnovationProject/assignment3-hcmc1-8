@@ -102,7 +102,7 @@ export default function Transactions() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
             <p className="text-muted-foreground text-sm">{filtered.length} transactions loaded from the backend dataset and live prediction feed.</p>
@@ -119,8 +119,8 @@ export default function Transactions() {
           </Button>
         </div>
 
-        <div className="glass-card p-4 flex flex-wrap items-end gap-4">
-          <div className="relative flex-1 min-w-[200px]">
+        <div className="glass-card p-4 grid grid-cols-1 md:flex md:flex-wrap items-end gap-4">
+          <div className="relative w-full md:flex-1 md:min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search ID, card brand or Category..."
@@ -134,7 +134,7 @@ export default function Transactions() {
           </div>
 
           <Select value={productFilter} onValueChange={(value) => { setProductFilter(value); setPage(1); }}>
-            <SelectTrigger className="w-56 bg-secondary border-border">
+            <SelectTrigger className="w-full md:w-56 bg-secondary border-border">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -148,7 +148,7 @@ export default function Transactions() {
           </Select>
 
           <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
-            <SelectTrigger className="w-44 bg-secondary border-border">
+            <SelectTrigger className="w-full md:w-44 bg-secondary border-border">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -159,7 +159,7 @@ export default function Transactions() {
             </SelectContent>
           </Select>
 
-          <div className="w-48">
+          <div className="w-full md:w-48">
             <p className="text-xs text-muted-foreground mb-1">Min Risk Score: {riskRange[0]}</p>
             <Slider value={riskRange} onValueChange={(value) => { setRiskRange(value); setPage(1); }} max={100} step={1} />
           </div>

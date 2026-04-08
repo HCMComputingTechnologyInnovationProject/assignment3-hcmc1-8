@@ -1,0 +1,108 @@
+{
+  "name": "Random Forest",
+  "model_key": "random_forest",
+  "dataset": "PaySim",
+  "dataset_description": "PaySim Mobile Money Fraud Dataset",
+  "artifact": "random_forest_paysim.pkl",
+  "accuracy": 0.9990870359099209,
+  "precision": 0.9993909866017052,
+  "recall": 0.9987827145465612,
+  "f1_score": 0.9990867579908675,
+  "auc_roc": 0.9999992591080624,
+  "confusion_matrix": {
+    "true_negative": 1642,
+    "false_positive": 1,
+    "false_negative": 2,
+    "true_positive": 1641
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9987834549878345,
+      "recall": 0.9993913572732805,
+      "f1-score": 0.9990873136598722,
+      "support": 1643.0
+    },
+    "1": {
+      "precision": 0.9993909866017052,
+      "recall": 0.9987827145465612,
+      "f1-score": 0.9990867579908675,
+      "support": 1643.0
+    },
+    "accuracy": 0.9990870359099209,
+    "macro avg": {
+      "precision": 0.9990872207947699,
+      "recall": 0.9990870359099209,
+      "f1-score": 0.9990870358253698,
+      "support": 3286.0
+    },
+    "weighted avg": {
+      "precision": 0.9990872207947699,
+      "recall": 0.9990870359099209,
+      "f1-score": 0.99908703582537,
+      "support": 3286.0
+    }
+  },
+  "split": {
+    "dataset_path": "../data/processed/PaySim_balanced.csv",
+    "total_samples": 16426,
+    "train_rows": 13140,
+    "test_rows": 3286,
+    "test_size": 0.2,
+    "random_state": 42,
+    "fraud_rate_train": 0.5,
+    "fraud_rate_test": 0.5,
+    "n_features": 11,
+    "dropped_columns": [
+      "isFlaggedFraud"
+    ]
+  },
+  "feature_importance": [
+    {
+      "name": "amount_ratio",
+      "value": 31.98
+    },
+    {
+      "name": "balance_diff",
+      "value": 29.35
+    },
+    {
+      "name": "newbalanceOrig",
+      "value": 14.02
+    },
+    {
+      "name": "oldbalanceOrg",
+      "value": 7.17
+    },
+    {
+      "name": "log_amount",
+      "value": 4.69
+    },
+    {
+      "name": "amount",
+      "value": 4.58
+    },
+    {
+      "name": "type",
+      "value": 4.2
+    },
+    {
+      "name": "hour",
+      "value": 1.72
+    },
+    {
+      "name": "newbalanceDest",
+      "value": 1.17
+    },
+    {
+      "name": "step",
+      "value": 1.13
+    }
+  ],
+  "supports_probability": true,
+  "overfitting": {
+    "train_accuracy": 0.9988584474885844,
+    "test_accuracy": 0.9990870359099209,
+    "train_auc": 0.9999999073321149,
+    "test_auc": 0.9999992591080624
+  }
+}
