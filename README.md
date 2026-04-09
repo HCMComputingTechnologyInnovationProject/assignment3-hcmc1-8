@@ -23,26 +23,60 @@ SentinelAI is a full-stack fraud detection project built with React, FastAPI, sc
 
 This project uses multiple fraud detection datasets:
 
-- IEEE-CIS Fraud Detection (`train_transaction.csv`)
-- PaySim Mobile Money Transactions
-- ULB Credit Card Fraud Dataset
+### IEEE-CIS Fraud Detection
+- Published: 2019  
+- Rows: 590,540 | Columns: 434  
+- Source: IEEE (Kaggle)  
+- Description: Real-world e-commerce transactions for fraud detection.
+
+---
+
+### PaySim Mobile Money Transactions
+- Published: 2016  
+- Rows: 6,362,620 | Columns: 11  
+- Author: Lopez-Rojas et al.  
+- Description: Simulated mobile payment transactions.
+
+---
+
+### ULB Credit Card Fraud Dataset
+- Published: 2013  
+- Rows: 284,807 | Columns: 31  
+- Source: ULB  
+- Description: Real credit card transactions with anonymized features.
+
+---
 
 Due to large file sizes, all datasets are hosted on Google Drive.
 
 - Download All Datasets: [Google Drive Link](https://drive.google.com/file/d/15am_9a7qWk6tBoXA92ZEmKxgJmcmhBvn/view?usp=drive_link)
 
+---
+
 ### Setup
 
-1. Download the dataset folder from the link above
-2. Extract the files (if zipped)
-3. Place all datasets into:
+1. Download the dataset folder from the link above  
+2. Extract the files (if zipped)  
 
-backend/data/raw/
+3. Place raw datasets into:
+`backend/data/raw/`
+
+4. Place the processed dataset folder into:
+`backend/data/`
+
+Final structure should look like:
+
+backend/data/
+├── raw/
+├── processed/
+
+---
 
 ### Notes
 
-- Ensure all dataset files are placed correctly inside `backend/data/raw/`
-- Do not rename files, as training scripts depend on exact filenames
+- Ensure raw datasets are placed inside `backend/data/raw/`
+- Ensure processed datasets are placed inside `backend/data/processed/`
+- Do not rename files or folders, as training scripts depend on exact structure
 - The project processes and combines these datasets during training
 
 ## Project Structure
