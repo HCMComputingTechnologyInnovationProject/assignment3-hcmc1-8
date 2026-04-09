@@ -5,6 +5,7 @@ import os
 import re
 import socket
 import sqlite3
+import warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -16,6 +17,7 @@ import requests as http_requests
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sklearn.exceptions import InconsistentVersionWarning
 
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -27,6 +29,26 @@ PREDICTIONS_DB_PATH = APP_ROOT / "data" / "predictions.db"
 DATASET_EPOCH = datetime(2017, 12, 1, tzinfo=timezone.utc)
 DATASET_SAMPLE_ROWS = 150_000
 PRODUCT_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6"]
+PREDICTION_MODEL_ORDER = ["xgboost", "random_forest", "logistic_regression", "isolation_forest"]
+INFERENCE_FEATURE_COLUMNS = ["TransactionAmt", "TransactionDT", "ProductCD"]
+MODEL_DISPLAY_NAMES = {
+    "xgboost": "XGBoost",
+    "random_forest": "Random Forest",
+    "logistic_regression": "Logistic Regression",
+    "isolation_forest": "Isolation Forest",
+}
+MODEL_METRICS_FILES = {
+    "xgboost": "model4_xgboost_metrics.json",
+    "random_forest": "model3_random_forest_metrics.json",
+    "logistic_regression": "model1_logistic_regression_metrics.json",
+    "isolation_forest": "model2_isolation_forest_metrics.json",
+}
+MODEL_ARTIFACT_FILES = {
+    "xgboost": "model4_xgboost.pkl",
+    "random_forest": "model3_random_forest.pkl",
+    "logistic_regression": "model1_logistic_regression.pkl",
+    "isolation_forest": "model2_isolation_forest.pkl",
+}
 
 DATASET_COLUMNS = [
     "TransactionID",
@@ -57,6 +79,7 @@ app.add_middleware(
 )
 
 model_artifacts: dict[str, Any] = {}
+model_registry: dict[str, dict[str, Any]] = {}
 global_historical_frame: pd.DataFrame | None = None
 global_predictions_frame: pd.DataFrame | None = None
 global_combined_frame: pd.DataFrame | None = None
@@ -155,14 +178,126 @@ def load_historical_transactions() -> pd.DataFrame:
 
 
 def resolve_deployment_artifact(model_id: str = "xgboost") -> Path | None:
-    model_files = {
-        "xgboost": "model4_xgboost.pkl",
-        "random_forest": "model3_random_forest.pkl",
-        "logistic_regression": "model1_logistic_regression.pkl",
-        "isolation_forest": "model2_isolation_forest.pkl",
-    }
-    candidate = MODELS_ROOT / model_files.get(model_id, "")
+    metrics = load_model_metrics(model_id)
+    artifact_name = str(metrics.get("artifact") or MODEL_ARTIFACT_FILES.get(model_id, ""))
+    candidate = MODELS_ROOT / artifact_name
     return candidate if candidate.exists() else None
+
+
+def model_display_name(model_id: str) -> str:
+    return MODEL_DISPLAY_NAMES.get(model_id, model_id.replace("_", " ").title())
+
+
+def load_model_metrics(model_id: str) -> dict[str, Any]:
+    metrics_name = MODEL_METRICS_FILES.get(model_id)
+    if not metrics_name:
+        return {}
+
+    metrics_path = METRICS_ROOT / metrics_name
+    if not metrics_path.exists():
+        return {}
+
+    try:
+        return json.loads(metrics_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def deployment_target_model_id() -> str:
+    deployment_path = METRICS_ROOT / "deployment_target.json"
+    if not deployment_path.exists():
+        return ""
+
+    try:
+        payload = json.loads(deployment_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return ""
+
+    return str(payload.get("model_key") or "")
+
+
+def normalize_feature_names(raw_names: Any) -> list[str]:
+    if raw_names is None:
+        return []
+    return [str(name) for name in list(raw_names)]
+
+
+def artifact_expected_features(artifact: dict[str, Any]) -> list[str]:
+    candidates = [
+        artifact.get("feature_columns"),
+        getattr(artifact.get("model"), "feature_names_in_", None),
+        getattr(artifact.get("preprocessor"), "feature_names_in_", None),
+        getattr(artifact.get("scaler"), "feature_names_in_", None),
+        artifact.get("feature_names"),
+    ]
+    for candidate in candidates:
+        normalized = normalize_feature_names(candidate)
+        if normalized:
+            return normalized
+    return []
+
+
+def validate_artifact_for_prediction(model_id: str, artifact: dict[str, Any]) -> tuple[bool, list[str], str]:
+    expected_features = artifact_expected_features(artifact)
+    if not expected_features:
+        return (
+            False,
+            [],
+            f"{model_display_name(model_id)} does not expose an input feature signature, so the API cannot safely score live requests.",
+        )
+
+    if expected_features != INFERENCE_FEATURE_COLUMNS:
+        return (
+            False,
+            expected_features,
+            (
+                f"{model_display_name(model_id)} expects {expected_features}, "
+                f"but the API submits {INFERENCE_FEATURE_COLUMNS}."
+            ),
+        )
+
+    return True, expected_features, ""
+
+
+def prediction_model_options() -> list[dict[str, str]]:
+    available_entries = [
+        model_registry[model_id]
+        for model_id in PREDICTION_MODEL_ORDER
+        if model_registry.get(model_id, {}).get("available", False)
+    ]
+    available_entries.sort(key=lambda entry: float(entry.get("f1_score") or -1.0), reverse=True)
+    return [{"id": entry["id"], "label": entry["label"]} for entry in available_entries]
+
+
+def default_prediction_model_id() -> str:
+    deployment_model_id = deployment_target_model_id()
+    if model_registry.get(deployment_model_id, {}).get("available", False):
+        return deployment_model_id
+    options = prediction_model_options()
+    return options[0]["id"] if options else ""
+
+
+def require_prediction_artifact(model_id: str) -> dict[str, Any]:
+    artifact = model_artifacts.get(model_id)
+    if artifact is not None:
+        return artifact
+
+    entry = model_registry.get(model_id)
+    available_models = [item["id"] for item in prediction_model_options()]
+    available_suffix = f" Available models: {available_models}." if available_models else ""
+
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Unknown model_id '{model_id}'.{available_suffix}")
+
+    status = entry.get("status")
+    if status == "incompatible":
+        raise HTTPException(status_code=400, detail=f"{entry['reason']}{available_suffix}")
+    if status == "missing":
+        raise HTTPException(status_code=503, detail=f"Model artifact '{model_id}' is missing from backend/results/models.")
+    if status == "load_error":
+        raise HTTPException(status_code=503, detail=f"Model artifact '{model_id}' could not be loaded: {entry['reason']}")
+
+    raise HTTPException(status_code=503, detail=f"Model artifact '{model_id}' is not available for prediction.{available_suffix}")
 
 
 def transaction_timestamp(transaction_dt: int) -> str:
@@ -264,9 +399,7 @@ def feature_importance_from_artifact(model_id: str = "xgboost") -> list[dict[str
 
 
 def infer_prediction(features: pd.DataFrame, model_id: str = "xgboost") -> tuple[int, float]:
-    artifact = model_artifacts.get(model_id)
-    if artifact is None:
-        raise HTTPException(status_code=503, detail=f"Model artifact '{model_id}' not loaded.")
+    artifact = require_prediction_artifact(model_id)
 
     model = artifact["model"]
     if "preprocessor" in artifact:
@@ -275,6 +408,18 @@ def infer_prediction(features: pd.DataFrame, model_id: str = "xgboost") -> tuple
         prediction = 1 if raw_prediction == -1 else 0
         score = float((-model.score_samples(transformed))[0])
         probability = float(max(0.0, min(1.0, score / (score + 1))))
+        return prediction, probability
+
+    if "scaler" in artifact:
+        transformed = artifact["scaler"].transform(features)
+        prediction = int(model.predict(transformed)[0])
+        if hasattr(model, "predict_proba"):
+            probability = float(model.predict_proba(transformed)[0][1])
+        elif hasattr(model, "decision_function"):
+            score = float(model.decision_function(transformed)[0])
+            probability = float(1 / (1 + np.exp(-score)))
+        else:
+            probability = float(prediction)
         return prediction, probability
 
     prediction = int(model.predict(features)[0])
@@ -578,20 +723,71 @@ def dashboard_insights(frame: pd.DataFrame) -> list[dict[str, Any]]:
 
 @app.on_event("startup")
 def startup_event() -> None:
-    global model_artifacts, global_historical_frame, global_predictions_frame
+    global model_artifacts, model_registry, global_historical_frame, global_predictions_frame
 
     ensure_storage()
     global_historical_frame = load_historical_transactions().sort_values("TransactionDT", ascending=False)
     global_predictions_frame = persisted_predictions_frame()
     build_combined_frame()
 
-    for m_id in ["xgboost", "random_forest", "logistic_regression", "isolation_forest"]:
+    model_artifacts = {}
+    model_registry = {}
+
+    for m_id in PREDICTION_MODEL_ORDER:
+        metrics = load_model_metrics(m_id)
+        metrics_label = str(metrics.get("name") or model_display_name(m_id))
+        metrics_f1 = float(metrics.get("f1_score")) if metrics.get("f1_score") is not None else None
+        supports_probability = bool(metrics.get("supports_probability", False))
         a_path = resolve_deployment_artifact(model_id=m_id)
-        if a_path is not None:
-            model_artifacts[m_id] = joblib.load(a_path)
+        if a_path is None:
+            model_registry[m_id] = {
+                "id": m_id,
+                "label": metrics_label,
+                "status": "missing",
+                "available": False,
+                "reason": "Artifact file not found.",
+                "expected_features": [],
+                "f1_score": metrics_f1,
+                "supports_probability": supports_probability,
+            }
+            print(f"Artifact for {m_id} not found.")
+            continue
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", InconsistentVersionWarning)
+                artifact = joblib.load(a_path)
+        except Exception as exc:
+            model_registry[m_id] = {
+                "id": m_id,
+                "label": metrics_label,
+                "status": "load_error",
+                "available": False,
+                "reason": str(exc),
+                "expected_features": [],
+                "f1_score": metrics_f1,
+                "supports_probability": supports_probability,
+            }
+            print(f"Failed to load artifact: {m_id} -> {a_path.name}: {exc}")
+            continue
+
+        compatible, expected_features, reason = validate_artifact_for_prediction(m_id, artifact)
+        model_registry[m_id] = {
+            "id": m_id,
+            "label": str(metrics.get("name") or artifact.get("display_name", model_display_name(m_id))),
+            "status": "ready" if compatible else "incompatible",
+            "available": compatible,
+            "reason": reason,
+            "expected_features": expected_features,
+            "artifact": a_path.name,
+            "f1_score": metrics_f1,
+            "supports_probability": supports_probability,
+        }
+        if compatible:
+            model_artifacts[m_id] = artifact
             print(f"Loaded artifact: {m_id} -> {a_path.name}")
         else:
-            print(f"Artifact for {m_id} not found.")
+            print(f"Skipped artifact: {m_id} -> {a_path.name} ({reason})")
 
     persisted_count = len(global_predictions_frame)
     print(f"Loaded historical transactions: {len(global_historical_frame):,} rows")
@@ -602,13 +798,20 @@ def startup_event() -> None:
 def prediction_options() -> dict[str, Any]:
     frame = combined_transactions_frame()
     if frame.empty:
-        return {"productCodes": [], "latestTransactionDt": 0}
+        return {
+            "productCodes": [],
+            "latestTransactionDt": 0,
+            "modelOptions": prediction_model_options(),
+            "defaultModelId": default_prediction_model_id(),
+        }
 
     product_codes = sorted(frame["ProductCD"].dropna().astype(str).unique().tolist())
     latest_transaction_dt = int(frame["TransactionDT"].max())
     return {
         "productCodes": product_codes,
         "latestTransactionDt": latest_transaction_dt,
+        "modelOptions": prediction_model_options(),
+        "defaultModelId": default_prediction_model_id(),
     }
 
 
@@ -621,6 +824,18 @@ def health_check() -> dict[str, Any]:
         "database_table": "predictions",
         "persisted_predictions": len(fetch_persisted_predictions()),
         "models_loaded": list(model_artifacts.keys()),
+        "models_configured": list(model_registry.keys()),
+        "models_available_for_prediction": [item["id"] for item in prediction_model_options()],
+        "models_skipped": [
+            {
+                "id": entry["id"],
+                "label": entry["label"],
+                "status": entry["status"],
+                "reason": entry["reason"],
+            }
+            for entry in model_registry.values()
+            if not entry.get("available", False)
+        ],
     }
 
 
@@ -650,7 +865,8 @@ def predict(payload: PredictionInput) -> dict[str, Any]:
                 "TransactionDT": payload.transaction_dt,
                 "ProductCD": payload.product_code,
             }
-        ]
+        ],
+        columns=INFERENCE_FEATURE_COLUMNS,
     )
     # Correctly route prediction to the selected model_id
     prediction, probability = infer_prediction(features, model_id=payload.model_id)

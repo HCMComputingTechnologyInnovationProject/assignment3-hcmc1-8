@@ -2,120 +2,73 @@
   "name": "Logistic Regression",
   "model_key": "logistic_regression",
   "artifact": "model1_logistic_regression.pkl",
-  "accuracy": 0.8886377173097921,
-  "precision": 0.9211712848397994,
-  "recall": 0.849769900671856,
-  "f1_score": 0.8839961704335869,
-  "auc_roc": 0.9408585467722018,
+  "accuracy": 0.841,
+  "precision": 0.07352941176470588,
+  "recall": 0.44921875,
+  "f1_score": 0.12637362637362637,
   "confusion_matrix": {
-    "true_negative": 94,
-    "false_positive": 1,
-    "false_negative": 7,
-    "true_positive": 88
+    "true_negative": 16590,
+    "false_positive": 2898,
+    "false_negative": 282,
+    "true_positive": 230
   },
   "classification_report": {
     "0": {
-      "precision": 0.9306930693069307,
-      "recall": 0.9894736842105263,
-      "f1-score": 0.9591836734693877,
-      "support": 95.0
+      "precision": 0.9832859174964438,
+      "recall": 0.8512931034482759,
+      "f1-score": 0.9125412541254125,
+      "support": 19488.0
     },
     "1": {
-      "precision": 0.9887640449438202,
-      "recall": 0.9263157894736842,
-      "f1-score": 0.9565217391304348,
-      "support": 95.0
+      "precision": 0.07352941176470588,
+      "recall": 0.44921875,
+      "f1-score": 0.12637362637362637,
+      "support": 512.0
     },
-    "accuracy": 0.9578947368421052,
+    "accuracy": 0.841,
     "macro avg": {
-      "precision": 0.9597285571253755,
-      "recall": 0.9578947368421052,
-      "f1-score": 0.9578527062999113,
-      "support": 190.0
+      "precision": 0.5284076646305749,
+      "recall": 0.6502559267241379,
+      "f1-score": 0.5194574402495195,
+      "support": 20000.0
     },
     "weighted avg": {
-      "precision": 0.9597285571253755,
-      "recall": 0.9578947368421052,
-      "f1-score": 0.9578527062999113,
-      "support": 190.0
+      "precision": 0.9599961509497112,
+      "recall": 0.841,
+      "f1-score": 0.8924153628549668,
+      "support": 20000.0
     }
   },
   "split": {
-    "datasets_used": [
-      "ULB",
-      "IEEE",
-      "PaySim"
+    "dataset_path": "backend/data/raw/train_transaction.csv",
+    "feature_columns": [
+      "TransactionAmt",
+      "TransactionDT",
+      "ProductCD"
     ],
-    "total_samples": 58698,
-    "train_rows": 46956,
-    "test_rows": 11742,
+    "target_column": "isFraud",
+    "sample_rows_loaded": 100000,
+    "train_rows": 80000,
+    "test_rows": 20000,
     "test_size": 0.2,
-    "random_state": 42
-  },
-  "per_dataset": {
-    "ULB": {
-      "accuracy": 0.9578947368421052,
-      "precision": 0.9887640449438202,
-      "recall": 0.9263157894736842,
-      "f1_score": 0.9565217391304348,
-      "auc_roc": 0.9871468144044322
-    },
-    "IEEE": {
-      "accuracy": 0.7868376481974353,
-      "precision": 0.8115637319316689,
-      "recall": 0.7471570287926446,
-      "f1_score": 0.7780297304106828,
-      "auc_roc": 0.8637923919584298
-    },
-    "PaySim": {
-      "accuracy": 0.9211807668898356,
-      "precision": 0.963186077643909,
-      "recall": 0.8758368837492392,
-      "f1_score": 0.917437041759643,
-      "auc_roc": 0.9716364339537438
-    }
+    "random_state": 42,
+    "fraud_rate_train": 0.0256125,
+    "fraud_rate_test": 0.0256
   },
   "feature_importance": [
     {
-      "name": "V14",
-      "value": 20.37
+      "name": "ProductCD",
+      "value": 91.32
     },
     {
-      "name": "V12",
-      "value": 14.5
+      "name": "TransactionDT",
+      "value": 5.27
     },
     {
-      "name": "V4",
-      "value": 13.62
-    },
-    {
-      "name": "V10",
-      "value": 9.75
-    },
-    {
-      "name": "V5",
-      "value": 8.0
-    },
-    {
-      "name": "V8",
-      "value": 7.47
-    },
-    {
-      "name": "V3",
-      "value": 7.27
-    },
-    {
-      "name": "V22",
-      "value": 6.86
-    },
-    {
-      "name": "V11",
-      "value": 6.3
-    },
-    {
-      "name": "Amount",
-      "value": 5.85
+      "name": "TransactionAmt",
+      "value": 3.41
     }
   ],
-  "supports_probability": true
+  "supports_probability": true,
+  "auc_roc": 0.6767617211553263
 }

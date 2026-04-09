@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fetchJson } from "@/lib/api";
+import { ApiError, fetchJson } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { addNotification } from "@/lib/notificationStore";
 
@@ -48,6 +48,8 @@ type FormValues = z.infer<typeof formSchema>;
 interface PredictionOptions {
   productCodes: string[];
   latestTransactionDt: number;
+  modelOptions: { id: string; label: string }[];
+  defaultModelId: string;
 }
 
 interface PredictionApiResponse {
@@ -78,7 +80,12 @@ interface PredictionResult {
 }
 
 export default function Prediction() {
-  const [options, setOptions] = useState<PredictionOptions>({ productCodes: [], latestTransactionDt: 0 });
+  const [options, setOptions] = useState<PredictionOptions>({
+    productCodes: [],
+    latestTransactionDt: 0,
+    modelOptions: [],
+    defaultModelId: "",
+  });
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -86,7 +93,7 @@ export default function Prediction() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { amount: "", productCode: "", transactionDt: "", modelId: "xgboost" },
+    defaultValues: { amount: "", productCode: "", transactionDt: "", modelId: "" },
   });
 
   useEffect(() => {
@@ -102,6 +109,14 @@ export default function Prediction() {
         form.setValue("transactionDt", String(response.latestTransactionDt));
         if (response.productCodes.length > 0) {
           form.setValue("productCode", response.productCodes[0]);
+        }
+        if (response.defaultModelId) {
+          form.setValue("modelId", response.defaultModelId);
+        } else if (response.modelOptions.length > 0) {
+          form.setValue("modelId", response.modelOptions[0].id);
+        }
+        if (response.modelOptions.length === 0) {
+          setError("No compatible model artifacts are currently available for prediction.");
         }
       } catch {
         if (active) {
@@ -161,8 +176,12 @@ export default function Prediction() {
         modelName: response.model_name,
         transactionId: response.transaction.id,
       });
-    } catch {
-      setError("Could not reach the inference API. Make sure the backend server is running and a trained model exists.");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setError(error.message);
+      } else {
+        setError("Could not reach the inference API. Make sure the backend server is running and a trained model exists.");
+      }
       setResult(null);
     } finally {
       setLoading(false);
@@ -199,19 +218,23 @@ export default function Prediction() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>ML Model Selection</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingOptions || options.modelOptions.length === 0}>
                         <FormControl>
                           <SelectTrigger className="bg-secondary border-border border-primary/20">
                             <SelectValue placeholder="Select Model" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="xgboost">XG Boost</SelectItem>
-                          <SelectItem value="random_forest">Random Forest</SelectItem>
-                          <SelectItem value="logistic_regression">Logistic Regression</SelectItem>
-                          <SelectItem value="isolation_forest">Isolation Forest</SelectItem>
+                          {options.modelOptions.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Only models whose saved artifacts match the live prediction input schema are shown here.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -276,7 +299,7 @@ export default function Prediction() {
                   )}
                 />
 
-                <Button type="submit" className="w-full" disabled={loading || loadingOptions}>
+                <Button type="submit" className="w-full" disabled={loading || loadingOptions || options.modelOptions.length === 0}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Brain className="h-4 w-4 mr-2" />}
                   Analyze Transaction
                 </Button>
