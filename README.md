@@ -66,9 +66,11 @@ Due to large file sizes, all datasets are hosted on Google Drive.
 
 Final structure should look like:
 
+```text
 backend/data/
-├── raw/
-├── processed/
+|- raw
+|- processed
+```
 
 ---
 
