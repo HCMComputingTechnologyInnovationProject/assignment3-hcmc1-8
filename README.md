@@ -122,20 +122,30 @@ The training pipeline currently evaluates four models on the same train/test spl
 
 The exported deployment model is selected from the probability-supporting models using the best F1-score on the shared test split.
 
-### Latest Sample Metrics
+### Model Evaluation Summary
 
-These were produced with:
+All four models were evaluated on one common stratified test split generated from `100,000` sampled rows loaded from `backend/data/raw/train_transaction.csv`. In the current saved evaluation run, the split consists of `80,000` training rows and `20,000` testing rows, with the fraud rate in the test set equal to `2.56%` (`fraud_rate_test = 0.0256`). Because this is a strongly imbalanced fraud-detection setting, Accuracy alone is not sufficient for model selection. For deployment decisions, the project prioritizes Precision, Recall, and especially F1-score.
 
-```bash
-python backend/code/training/train_and_export.py --rows 20000
-```
+This summary refers specifically to the shared deployment-comparison metrics stored in `backend/results/metrics/comparison.json` and the four model metric files. It is separate from the dataset-specific comparison tabs shown in the frontend Model Evaluation page for `ULB`, `IEEE`, and `PaySim`.
 
-| Model | Precision | Recall | F1-score |
-| --- | --- | --- | --- |
-| Logistic Regression | 0.0699 | 0.4375 | 0.1205 |
-| Isolation Forest | 0.0248 | 0.0268 | 0.0258 |
-| Random Forest | 0.2245 | 0.3929 | 0.2857 |
-| XGBoost | 0.5455 | 0.0536 | 0.0976 |
+### Performance Analysis
+
+`Logistic Regression` produced `84.10%` Accuracy, but it struggled with the highly imbalanced fraud distribution. Its Precision was only `7.35%`, while Recall reached `44.92%`, resulting in an F1-score of `0.126`. This makes it useful as a baseline classical model, but not strong enough for primary deployment on this fraud-detection task.
+
+`Isolation Forest` achieved `65.29%` Accuracy and an F1-score of `0.078`. As an unsupervised anomaly detector, it maintained relatively strong Recall at `57.61%`, which supports its role as a supplementary outlier-detection layer for unusual or previously unseen fraud behaviour rather than as the main standalone classifier.
+
+`Random Forest` delivered the most balanced performance among the tested models. It reached `87.95%` Accuracy, `11.14%` Precision, `53.12%` Recall, and the highest F1-score at `0.184`. Although its absolute Precision is still limited by the severe class imbalance, it offered the most reliable overall trade-off for fraud prediction in this shared evaluation and was therefore selected as the deployment target.
+
+`XGBoost` achieved the highest Accuracy at `97.51%` and the highest Precision at `88.89%`. However, its Recall was only `3.12%`, giving an F1-score of `0.060`. This indicates that the model is overly conservative: it predicts fraud very selectively and misses too many fraudulent transactions to be trusted as the main production model on its own.
+
+### Table 1: Model Evaluation Metrics and Deployment Status
+
+| Model | Accuracy | Precision | Recall | F1-score | Evaluation & Deployment Status |
+| --- | --- | --- | --- | --- | --- |
+| Logistic Regression (Model 1) | 84.10% | 7.35% | 44.92% | 0.126 | Baseline supervised model. Failed to handle the class imbalance effectively enough for deployment. |
+| Isolation Forest (Model 2) | 65.29% | 4.20% | 57.61% | 0.078 | Used as an unsupervised anomaly-detection layer to help capture unusual or zero-day fraud patterns. |
+| Random Forest (Model 3) | 87.95% | 11.14% | 53.12% | 0.184 | Deployment target. Produced the highest F1-score among the evaluated models in the shared comparison run. |
+| XGBoost (Model 4) | 97.51% | 88.89% | 3.12% | 0.060 | Too conservative for primary standalone deployment because Recall is extremely low despite strong Accuracy and Precision. |
 
 Current deployment recommendation: `Random Forest`
 
@@ -374,6 +384,7 @@ Example body:
 ### Model Evaluation
 
 - `GET /api/model/comparison`
+- `GET /api/model/comparison/datasets`
 
 ## Testing Prediction
 

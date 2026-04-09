@@ -24,6 +24,7 @@ APP_ROOT = Path(__file__).resolve().parent
 RESULTS_ROOT = APP_ROOT / "results"
 MODELS_ROOT = RESULTS_ROOT / "models"
 METRICS_ROOT = RESULTS_ROOT / "metrics"
+NOTEBOOKS_ROOT = APP_ROOT / "notebooks"
 DATASET_PATH = APP_ROOT / "data" / "test" / "test_transactions.csv"
 PREDICTIONS_DB_PATH = APP_ROOT / "data" / "predictions.db"
 DATASET_EPOCH = datetime(2017, 12, 1, tzinfo=timezone.utc)
@@ -42,6 +43,38 @@ MODEL_METRICS_FILES = {
     "random_forest": "model3_random_forest_metrics.json",
     "logistic_regression": "model1_logistic_regression_metrics.json",
     "isolation_forest": "model2_isolation_forest_metrics.json",
+}
+MODEL_EVALUATION_ORDER = ["logistic_regression", "isolation_forest", "random_forest", "xgboost"]
+DATASET_EVALUATION_ORDER = ["ULB", "IEEE", "PaySim"]
+DATASET_EVALUATION_META = {
+    "ULB": {
+        "label": "ULB",
+        "description": "ULB Credit Card Fraud Dataset",
+    },
+    "IEEE": {
+        "label": "IEEE",
+        "description": "IEEE-CIS Fraud Detection Dataset",
+    },
+    "PaySim": {
+        "label": "PaySim",
+        "description": "PaySim Mobile Money Fraud Dataset",
+    },
+}
+MODEL_DATASET_METRICS_FILES = {
+    "logistic_regression": {
+        "ULB": "model1_logistic_regression_ulb_metrics.json",
+        "IEEE": "model1_logistic_regression_ieee_metrics.json",
+        "PaySim": "model1_logistic_regression_paysim_metrics.json",
+    },
+    "random_forest": {
+        "ULB": "model3_random_forest_ulb_metrics.json",
+        "IEEE": "model3_random_forest_ieee_metrics.json",
+        "PaySim": "model3_random_forest_paysim_metrics.json",
+    },
+}
+MODEL_NOTEBOOK_INFO_FILES = {
+    "isolation_forest": "model2_info.json",
+    "xgboost": "model4_info.json",
 }
 MODEL_ARTIFACT_FILES = {
     "xgboost": "model4_xgboost.pkl",
@@ -193,27 +226,204 @@ def load_model_metrics(model_id: str) -> dict[str, Any]:
     if not metrics_name:
         return {}
 
-    metrics_path = METRICS_ROOT / metrics_name
-    if not metrics_path.exists():
+    return load_json_file(METRICS_ROOT / metrics_name)
+
+
+def load_json_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
         return {}
 
     try:
-        return json.loads(metrics_path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def deployment_target_model_id() -> str:
-    deployment_path = METRICS_ROOT / "deployment_target.json"
-    if not deployment_path.exists():
-        return ""
-
-    try:
-        payload = json.loads(deployment_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return ""
-
+    payload = load_json_file(METRICS_ROOT / "deployment_target.json")
     return str(payload.get("model_key") or "")
+
+
+def load_dataset_specific_metric(model_id: str, dataset_id: str) -> dict[str, Any]:
+    metrics_name = MODEL_DATASET_METRICS_FILES.get(model_id, {}).get(dataset_id)
+    if metrics_name:
+        payload = load_json_file(METRICS_ROOT / metrics_name)
+        if payload:
+            return {
+                "name": str(payload.get("name") or model_display_name(model_id)),
+                "model_key": str(payload.get("model_key") or model_id),
+                "dataset": str(payload.get("dataset") or dataset_id),
+                "dataset_description": str(
+                    payload.get("dataset_description") or DATASET_EVALUATION_META[dataset_id]["description"]
+                ),
+                "artifact": str(payload.get("artifact") or ""),
+                "accuracy": float(payload.get("accuracy", 0.0)) if payload.get("accuracy") is not None else None,
+                "precision": float(payload.get("precision", 0.0)) if payload.get("precision") is not None else None,
+                "recall": float(payload.get("recall", 0.0)) if payload.get("recall") is not None else None,
+                "f1_score": float(payload.get("f1_score", 0.0)) if payload.get("f1_score") is not None else None,
+                "auc_roc": float(payload.get("auc_roc", 0.0)) if payload.get("auc_roc") is not None else None,
+                "split": payload.get("split"),
+                "source": "metrics_json",
+                "available": True,
+            }
+
+    notebook_name = MODEL_NOTEBOOK_INFO_FILES.get(model_id)
+    if notebook_name:
+        notebook_payload = load_json_file(NOTEBOOKS_ROOT / notebook_name)
+        performance_metrics = notebook_payload.get("performance_metrics", {})
+        dataset_payload = performance_metrics.get(f"{dataset_id}_Dataset")
+        if isinstance(dataset_payload, dict):
+            return {
+                "name": model_display_name(model_id),
+                "model_key": model_id,
+                "dataset": dataset_id,
+                "dataset_description": DATASET_EVALUATION_META[dataset_id]["description"],
+                "artifact": str(notebook_payload.get("saved_artifacts", {}).get("model_file") or ""),
+                "accuracy": float(dataset_payload.get("accuracy", 0.0)),
+                "precision": float(dataset_payload.get("precision", 0.0)),
+                "recall": float(dataset_payload.get("recall", 0.0)),
+                "f1_score": float(dataset_payload.get("f1_score", 0.0)),
+                "auc_roc": float(dataset_payload.get("auc_roc", 0.0)) if dataset_payload.get("auc_roc") is not None else None,
+                "split": None,
+                "supports_probability": model_id != "isolation_forest",
+                "source": "notebook_info",
+                "available": True,
+            }
+
+    return {
+        "name": model_display_name(model_id),
+        "model_key": model_id,
+        "dataset": dataset_id,
+        "dataset_description": DATASET_EVALUATION_META[dataset_id]["description"],
+        "artifact": "",
+        "accuracy": None,
+        "precision": None,
+        "recall": None,
+        "f1_score": None,
+        "auc_roc": None,
+        "split": None,
+        "supports_probability": model_id != "isolation_forest",
+        "source": "missing",
+        "available": False,
+        "note": "No saved dataset-specific metrics were found for this model on this dataset yet.",
+    }
+
+
+def build_overall_comparison_payload(datasets: list[dict[str, Any]]) -> dict[str, Any]:
+    models: list[dict[str, Any]] = []
+
+    for model_id in MODEL_EVALUATION_ORDER:
+        model_entries = []
+        for dataset in datasets:
+            matched = next((item for item in dataset["models"] if item["model_key"] == model_id and item.get("available")), None)
+            if matched is not None:
+                model_entries.append(matched)
+
+        if model_entries:
+            included_datasets = [str(entry["dataset"]) for entry in model_entries]
+            missing_datasets = [dataset_id for dataset_id in DATASET_EVALUATION_ORDER if dataset_id not in included_datasets]
+
+            def average_metric(metric_name: str) -> float | None:
+                values = [float(entry[metric_name]) for entry in model_entries if entry.get(metric_name) is not None]
+                if not values:
+                    return None
+                return round(sum(values) / len(values), 6)
+
+            models.append(
+                {
+                    "name": model_entries[0]["name"],
+                    "model_key": model_id,
+                    "dataset": "OVERALL",
+                    "dataset_description": "Aggregate comparison across the trained datasets",
+                    "artifact": "",
+                    "accuracy": average_metric("accuracy"),
+                    "precision": average_metric("precision"),
+                    "recall": average_metric("recall"),
+                    "f1_score": average_metric("f1_score"),
+                    "auc_roc": average_metric("auc_roc"),
+                    "split": None,
+                    "source": "aggregated",
+                    "available": True,
+                    "coverage_count": len(model_entries),
+                    "coverage_total": len(DATASET_EVALUATION_ORDER),
+                    "included_datasets": included_datasets,
+                    "missing_datasets": missing_datasets,
+                    "note": (
+                        f"Averages are computed across {len(model_entries)}/{len(DATASET_EVALUATION_ORDER)} "
+                        f"datasets with saved metrics."
+                    ),
+                }
+            )
+            continue
+
+        models.append(
+            {
+                "name": model_display_name(model_id),
+                "model_key": model_id,
+                "dataset": "OVERALL",
+                "dataset_description": "Aggregate comparison across the trained datasets",
+                "artifact": "",
+                "accuracy": None,
+                "precision": None,
+                "recall": None,
+                "f1_score": None,
+                "auc_roc": None,
+                "split": None,
+                "source": "missing",
+                "available": False,
+                "coverage_count": 0,
+                "coverage_total": len(DATASET_EVALUATION_ORDER),
+                "included_datasets": [],
+                "missing_datasets": list(DATASET_EVALUATION_ORDER),
+                "note": "This model does not have any saved dataset-specific metrics yet.",
+            }
+        )
+
+    best_model = max(
+        (model for model in models if model.get("available")),
+        key=lambda model: float(model.get("f1_score") or -1.0),
+        default=None,
+    )
+
+    return {
+        "id": "OVERALL",
+        "label": "Overall",
+        "description": "Macro-average comparison across the available dataset-specific metrics.",
+        "models": models,
+        "available_models": sum(1 for model in models if model.get("available")),
+        "best_model": best_model.get("name") if best_model else "No metrics available yet",
+        "split": None,
+        "aggregate_method": "macro_average_available_datasets",
+    }
+
+
+def build_dataset_comparison_payload() -> dict[str, Any]:
+    datasets: list[dict[str, Any]] = []
+
+    for dataset_id in DATASET_EVALUATION_ORDER:
+        models = [load_dataset_specific_metric(model_id, dataset_id) for model_id in MODEL_EVALUATION_ORDER]
+        available_models = [model for model in models if model.get("available")]
+        best_model = max(
+            available_models,
+            key=lambda model: float(model.get("f1_score") or -1.0),
+            default=None,
+        )
+        split_info = next((model.get("split") for model in available_models if model.get("split")), None)
+        datasets.append(
+            {
+                "id": dataset_id,
+                "label": DATASET_EVALUATION_META[dataset_id]["label"],
+                "description": DATASET_EVALUATION_META[dataset_id]["description"],
+                "models": models,
+                "available_models": len(available_models),
+                "best_model": best_model.get("name") if best_model else "No metrics available yet",
+                "split": split_info,
+            }
+        )
+
+    overall = build_overall_comparison_payload(datasets)
+    return {"datasets": [overall, *datasets]}
 
 
 def normalize_feature_names(raw_names: Any) -> list[str]:
@@ -955,6 +1165,11 @@ def get_model_comparison() -> list[dict[str, Any]]:
     if not comparison_path.exists():
         return []
     return json.loads(comparison_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/model/comparison/datasets")
+def get_model_comparison_by_dataset() -> dict[str, Any]:
+    return build_dataset_comparison_payload()
 
 def _build_system_prompt() -> str:
     """Build a compact system prompt with live SentinelAI data. Cached for 5 min to conserve quota."""
